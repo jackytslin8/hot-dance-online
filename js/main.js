@@ -91,13 +91,27 @@ class GameEngine {
         this.chart = [];
         const beatDuration = 60 / bpm;
         const startBeat = Math.ceil(leadIn / beatDuration); // 從 leadIn 秒後開始
-        for (let beat = startBeat; beat < 200; beat += 0.5) {
-            if (beat % 1 === 0) {
+
+        // 每拍一個箭頭，方向在重拍(每4拍)固定，其他拍隨機
+        for (let beat = startBeat; beat < 200; beat++) {
+            const posInMeasure = beat % 4; // 0=重拍, 1,2,3=弱拍
+            
+            if (posInMeasure === 0) {
+                // 重拍：必定有箭頭
                 const dir = DIR_KEYS_4[Math.floor(Math.random() * DIR_KEYS_4.length)];
                 this.chart.push({ time: beat * beatDuration, dir: dir });
-            } else if (Math.random() < 0.3) {
-                const dir = DIR_KEYS_4[Math.floor(Math.random() * DIR_KEYS_4.length)];
-                this.chart.push({ time: beat * beatDuration, dir: dir });
+            } else if (posInMeasure === 2) {
+                // 第三拍：70% 機率有箭頭
+                if (Math.random() < 0.7) {
+                    const dir = DIR_KEYS_4[Math.floor(Math.random() * DIR_KEYS_4.length)];
+                    this.chart.push({ time: beat * beatDuration, dir: dir });
+                }
+            } else {
+                // 第二、四拍：40% 機率有箭頭
+                if (Math.random() < 0.4) {
+                    const dir = DIR_KEYS_4[Math.floor(Math.random() * DIR_KEYS_4.length)];
+                    this.chart.push({ time: beat * beatDuration, dir: dir });
+                }
             }
         }
     }
