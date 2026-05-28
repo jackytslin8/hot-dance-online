@@ -107,31 +107,22 @@ class GameEngine {
             dir: noteData.dir,
             time: noteData.time,
             hit: false,
-            inputDone: false,
             fadeOut: 0,
             glow: 0,
         });
     }
 
+    // 直接按方向鍵 = 判定（不需要先按方向再按空白）
     handleDirection(key) {
         const now = window.audioEngine.getBGMTime();
-        const targetNote = this.notes.find(n => !n.inputDone && !n.hit);
-        if (targetNote && targetNote.dir === key) {
-            targetNote.inputDone = true;
-            targetNote.glow = 1.0;
-            window.audioEngine.playTap();
-        } else {
-            window.audioEngine.playBad();
-        }
-    }
 
-    handleSpace() {
-        const now = window.audioEngine.getBGMTime();
+        // 找最接近判定時間的同方向箭頭
         let bestNote = null;
         let bestDiff = Infinity;
 
         this.notes.forEach(note => {
-            if (note.hit || !note.inputDone) return;
+            if (note.hit) return;
+            if (note.dir !== key) return;
             const diff = Math.abs(now - note.time);
             if (diff < bestDiff) {
                 bestDiff = diff;
@@ -139,7 +130,7 @@ class GameEngine {
             }
         });
 
-        if (bestNote) {
+        if (bestNote && bestDiff <= CONFIG.BAD_WINDOW) {
             bestNote.hit = true;
             let judge = JUDGE.MISS;
             if (bestDiff <= CONFIG.PERFECT_WINDOW) judge = JUDGE.PERFECT;
@@ -147,11 +138,14 @@ class GameEngine {
             else if (bestDiff <= CONFIG.COOL_WINDOW) judge = JUDGE.COOL;
             else if (bestDiff <= CONFIG.BAD_WINDOW) judge = JUDGE.BAD;
             this.applyJudge(judge, bestNote);
+            window.audioEngine.playTap();
         } else {
-            this.applyJudge(JUDGE.MISS, null);
-            window.audioEngine.playMiss();
+            // 按錯時機或沒有對應箭頭
+            window.audioEngine.playBad();
         }
     }
+
+    handleSpace() { /* 不再需要 */ }
 
     applyJudge(judge, note) {
         if (judge.combo) {
@@ -323,7 +317,8 @@ function drawNotes() {
         if (note.hit && note.fadeOut > 1) return;
         const x = CONFIG.C_X + (note.time - now) * CONFIG.ARROW_SPEED;
         if (x < -50 || x > canvas.width + 50) return;
-        drawArrow(x, 200, note.dir, note.hit ? (1 - note.fadeOut) : 1, note.inputDone, note.glow, note.inputDone ? '#ff0' : '#fff');
+        const alpha = note.hit ? (1 - note.fadeOut) : 1;
+        drawArrow(x, 200, note.dir, alpha, note.hit, note.glow, note.hit ? '#ff0' : '#fff');
     });
 }
 
