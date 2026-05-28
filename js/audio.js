@@ -101,6 +101,13 @@ class AudioEngine {
         }
     }
 
+    // 取得箭頭應開始出現的延遲秒數 (讓音樂先播放一段)
+    getLeadIn() {
+        if (!this.currentSong) return 4;
+        if (this.currentSong.type === 'mp3' || this.currentSong.type === 'upload') return 6; // MP3 多等 2 秒讓音樂 establish
+        return 4; // 合成音樂等 4 秒
+    }
+
     _playMP3(url) {
         this.bgmAudio = new Audio();
         this.bgmAudio.src = url;

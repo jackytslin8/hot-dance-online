@@ -87,10 +87,11 @@ class GameEngine {
         this.feverActive = false;
     }
 
-    initChart(bpm) {
+    initChart(bpm, leadIn) {
         this.chart = [];
         const beatDuration = 60 / bpm;
-        for (let beat = 8; beat < 200; beat += 0.5) {
+        const startBeat = Math.ceil(leadIn / beatDuration); // 從 leadIn 秒後開始
+        for (let beat = startBeat; beat < 200; beat += 0.5) {
             if (beat % 1 === 0) {
                 const dir = DIR_KEYS_4[Math.floor(Math.random() * DIR_KEYS_4.length)];
                 this.chart.push({ time: beat * beatDuration, dir: dir });
@@ -247,7 +248,6 @@ let gameStarted = false;
 function startGame(songId, uploadUrl) {
     if (gameStarted) return;
     gameStarted = true;
-    console.log('startGame called:', songId, uploadUrl);
     document.getElementById('start-overlay').style.display = 'none';
 
     const song = SONGS[songId] || SONGS[0];
@@ -257,7 +257,8 @@ function startGame(songId, uploadUrl) {
     window.audioEngine.playBGM(songId, uploadUrl);
 
     const bpm = song ? song.bpm : 120;
-    engine.initChart(bpm);
+    const leadIn = window.audioEngine.getLeadIn();
+    engine.initChart(bpm, leadIn);
     engine.chartIndex = 0;
 }
 
