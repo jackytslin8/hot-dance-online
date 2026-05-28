@@ -45,7 +45,11 @@ function selectSong(songId) {
     overlay.style.display = 'flex';
     document.getElementById('overlay-title').textContent = SONGS[songId].title;
     
-    overlay.onclick = () => startGame(songId);
+    overlay.onclick = null;
+    overlay.addEventListener('click', function handler() {
+        overlay.removeEventListener('click', handler);
+        startGame(songId);
+    });
 }
 
 // 處理 MP3 上傳
@@ -53,11 +57,19 @@ document.getElementById('mp3-upload').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
     const url = URL.createObjectURL(file);
+    console.log('MP3 uploaded:', file.name, url);
+    
     document.getElementById('song-select').style.display = 'none';
     const overlay = document.getElementById('start-overlay');
     overlay.style.display = 'flex';
     document.getElementById('overlay-title').textContent = '🎤 ' + file.name.replace(/\.mp3$/i, '');
-    overlay.onclick = () => startGame(9, url);
+    
+    // 移除舊的 onclick，綁定新的
+    overlay.onclick = null;
+    overlay.addEventListener('click', function handler() {
+        overlay.removeEventListener('click', handler);
+        startGame(9, url);
+    });
 });
 
 // ========== 遊戲引擎 ==========
@@ -235,15 +247,17 @@ let gameStarted = false;
 function startGame(songId, uploadUrl) {
     if (gameStarted) return;
     gameStarted = true;
+    console.log('startGame called:', songId, uploadUrl);
     document.getElementById('start-overlay').style.display = 'none';
 
     const song = SONGS[songId] || SONGS[0];
-    document.getElementById('song-title').textContent = song.title;
+    document.getElementById('song-title').textContent = song ? song.title : 'Custom';
 
     window.audioEngine.init();
     window.audioEngine.playBGM(songId, uploadUrl);
 
-    engine.initChart(song.bpm);
+    const bpm = song ? song.bpm : 120;
+    engine.initChart(bpm);
     engine.chartIndex = 0;
 }
 

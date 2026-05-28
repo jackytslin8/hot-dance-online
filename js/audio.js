@@ -105,17 +105,13 @@ class AudioEngine {
         this.bgmAudio = new Audio();
         this.bgmAudio.src = url;
         this.bgmAudio.loop = true;
-        this.bgmAudio.crossOrigin = 'anonymous';
+        // 不設 crossOrigin（本機 blob URL 不需要）
 
-        // 連接到 AudioContext 以獲得音量控制
-        try {
-            this.bgmSource = this.ctx.createMediaElementSource(this.bgmAudio);
-            this.bgmSource.connect(this.ctx.destination);
-        } catch(e) {
-            // 如果已經連接過，忽略
-        }
-
-        this.bgmAudio.play().catch(e => console.warn('MP3 play failed:', e));
+        this.bgmAudio.play().then(() => {
+            console.log('MP3 playing:', url);
+        }).catch(e => {
+            console.warn('MP3 play failed:', e);
+        });
     }
 
     _playSynth(song) {
