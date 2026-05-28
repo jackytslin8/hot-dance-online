@@ -10,6 +10,7 @@ const CONFIG = {
     BAD_WINDOW: 0.40,
     C_X: 150,
     INPUT_BUFFER_TIME: 0.5,
+    OFFSET: 0, // 音訊偏移量（秒），正數=箭頭延後出現
 };
 
 const JUDGE = {
@@ -128,7 +129,7 @@ class GameEngine {
 
     // 直接按方向鍵 = 判定（不需要先按方向再按空白）
     handleDirection(key) {
-        const now = window.audioEngine.getBGMTime();
+        const now = window.audioEngine.getBGMTime() + CONFIG.OFFSET;
 
         // 找最接近判定時間的同方向箭頭
         let bestNote = null;
@@ -212,7 +213,7 @@ class GameEngine {
     }
 
     update() {
-        const now = window.audioEngine.getBGMTime();
+        const now = window.audioEngine.getBGMTime() + CONFIG.OFFSET;
 
         while (this.chartIndex < this.chart.length && this.chart[this.chartIndex].time <= now + 4) {
             this.spawnNote(this.chart[this.chartIndex]);
@@ -272,14 +273,35 @@ function startGame(songId, uploadUrl) {
 
 window.addEventListener('keydown', (e) => {
     if (!gameStarted) return;
-    if (e.code === 'Space') {
-        e.preventDefault();
-        engine.handleSpace();
-    } else if (DIR_KEYS_4.includes(e.code)) {
+    // + / - 調整偏移量
+    if (e.code === 'Equal' || e.code === 'NumpadAdd') {
+        CONFIG.OFFSET += 0.05;
+        showOffset(); return;
+    }
+    if (e.code === 'Minus' || e.code === 'NumpadSubtract') {
+        CONFIG.OFFSET -= 0.05;
+        showOffset(); return;
+    }
+    if (DIR_KEYS_4.includes(e.code)) {
         e.preventDefault();
         engine.handleDirection(e.code);
     }
 });
+
+function showOffset() {
+    let el = document.getElementById('offset-display');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'offset-display';
+        el.style.cssText = 'position:absolute;top:50px;right:20px;font-size:20px;color:#0ff;text-shadow:0 0 10px #0ff;transition:opacity 0.5s;pointer-events:none;';
+        document.getElementById('game-container').appendChild(el);
+    }
+    const ms = Math.round(CONFIG.OFFSET * 1000);
+    el.textContent = `偏移: ${ms > 0 ? '+' : ''}${ms}ms`;
+    el.style.opacity = 1;
+    clearTimeout(el._timeout);
+    el._timeout = setTimeout(() => el.style.opacity = 0, 2000);
+}
 
 // ========== 渲染 ==========
 const canvas = document.getElementById('gameCanvas');
@@ -326,7 +348,7 @@ function drawArrow(x, y, dir, alpha = 1, filled = false, glow = 0, color = '#fff
 }
 
 function drawNotes() {
-    const now = window.audioEngine.getBGMTime();
+    const now = window.audioEngine.getBGMTime() + CONFIG.OFFSET;
     engine.notes.forEach(note => {
         if (note.hit && note.fadeOut > 1) return;
         const x = CONFIG.C_X + (note.time - now) * CONFIG.ARROW_SPEED;
