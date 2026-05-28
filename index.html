@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>熱舞 Online - Retro Dance</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #game-container { position: relative; }
+
+        canvas {
+            display: block;
+            border: 3px solid #ff00ff;
+            box-shadow: 0 0 20px #ff00ff, 0 0 60px rgba(255,0,255,0.3);
+        }
+
+        .hud {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            pointer-events: none;
+        }
+
+        #score {
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #fff;
+            color: #fff;
+        }
+
+        #song-title {
+            font-size: 18px;
+            color: #0ff;
+            text-shadow: 0 0 10px #0ff;
+        }
+
+        #combo-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            font-weight: bold;
+            color: #ffff00;
+            text-shadow: 0 0 20px #ff0, 0 0 40px #f80;
+            opacity: 0;
+            transition: all 0.1s;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* 選曲畫面 */
+        #song-select {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            padding: 20px;
+        }
+
+        #song-select h1 {
+            font-size: 32px;
+            color: #ff00ff;
+            text-shadow: 0 0 20px #f0f, 0 0 40px #f0f;
+            margin-bottom: 10px;
+            animation: pulse 1.5s infinite;
+        }
+
+        #song-select .subtitle {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .song-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .song-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .song-item:hover {
+            background: rgba(255,0,255,0.2);
+            border-color: #ff00ff;
+            transform: scale(1.02);
+        }
+
+        .song-item .title {
+            font-size: 16px;
+            color: #fff;
+        }
+
+        .song-item .bpm {
+            font-size: 14px;
+            color: #0ff;
+            min-width: 80px;
+            text-align: right;
+        }
+
+        /* 開始提示 */
+        #start-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            cursor: pointer;
+        }
+
+        #start-overlay h1 {
+            font-size: 36px;
+            color: #ff00ff;
+            text-shadow: 0 0 20px #f0f, 0 0 40px #f0f;
+            margin-bottom: 20px;
+            animation: pulse 1.5s infinite;
+        }
+
+        #start-overlay p {
+            color: #aaa;
+            font-size: 16px;
+            margin: 5px 0;
+        }
+
+        .key-hint {
+            color: #0ff;
+            border: 1px solid #0ff;
+            padding: 2px 8px;
+            margin: 0 3px;
+            border-radius: 3px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="900" height="500"></canvas>
+
+        <div class="hud">
+            <div id="score">SCORE: 0</div>
+            <div id="song-title"></div>
+        </div>
+
+        <div id="combo-text"></div>
+
+        <!-- 選曲畫面 -->
+        <div id="song-select">
+            <h1>🎵 熱舞 ONLINE 🎵</h1>
+            <div class="subtitle">選擇一首歌曲開始遊戲</div>
+            <div class="song-list" id="song-list"></div>
+        </div>
+
+        <!-- 遊戲開始提示 -->
+        <div id="start-overlay">
+            <h1 id="overlay-title">🎵 熱舞 ONLINE 🎵</h1>
+            <p>方向鍵 <span class="key-hint">↑ ↓ ← →</span> 輸入箭頭方向</p>
+            <p><span class="key-hint">SPACE</span> 在箭頭到達判定線時按下判定</p>
+            <p style="margin-top: 20px; color: #ff0;">>>> 點擊任意處開始 <<<</p>
+        </div>
+    </div>
+
+    <script src="js/audio.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
