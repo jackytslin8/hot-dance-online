@@ -48,6 +48,18 @@ function selectSong(songId) {
     overlay.onclick = () => startGame(songId);
 }
 
+// 處理 MP3 上傳
+document.getElementById('mp3-upload').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    document.getElementById('song-select').style.display = 'none';
+    const overlay = document.getElementById('start-overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('overlay-title').textContent = '🎤 ' + file.name.replace(/\.mp3$/i, '');
+    overlay.onclick = () => startGame(9, url);
+});
+
 // ========== 遊戲引擎 ==========
 class GameEngine {
     constructor() {
@@ -220,7 +232,7 @@ class GameEngine {
 const engine = new GameEngine();
 let gameStarted = false;
 
-function startGame(songId) {
+function startGame(songId, uploadUrl) {
     if (gameStarted) return;
     gameStarted = true;
     document.getElementById('start-overlay').style.display = 'none';
@@ -229,7 +241,7 @@ function startGame(songId) {
     document.getElementById('song-title').textContent = song.title;
 
     window.audioEngine.init();
-    window.audioEngine.playBGM(songId);
+    window.audioEngine.playBGM(songId, uploadUrl);
 
     engine.initChart(song.bpm);
     engine.chartIndex = 0;

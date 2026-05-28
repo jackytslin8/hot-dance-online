@@ -120,6 +120,27 @@
             transform: scale(1.02);
         }
 
+        .upload-area {
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        .upload-btn {
+            background: rgba(0,255,255,0.1);
+            border: 1px dashed #0ff;
+            color: #0ff;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            transition: all 0.2s;
+        }
+
+        .upload-btn:hover {
+            background: rgba(0,255,255,0.3);
+        }
+
         .song-item .title {
             font-size: 16px;
             color: #fff;
@@ -189,6 +210,10 @@
             <h1>🎵 熱舞 ONLINE 🎵</h1>
             <div class="subtitle">選擇一首歌曲開始遊戲</div>
             <div class="song-list" id="song-list"></div>
+            <div class="upload-area" id="upload-area">
+                <input type="file" id="mp3-upload" accept="audio/mp3,audio/*" style="display:none">
+                <button class="upload-btn" onclick="document.getElementById('mp3-upload').click()">📁 上傳自己的 MP3</button>
+            </div>
         </div>
 
         <!-- 遊戲開始提示 -->
