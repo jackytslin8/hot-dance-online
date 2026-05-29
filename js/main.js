@@ -368,7 +368,7 @@ class GameEngine {
             }
             // position
             const timeDiff = n.time - now;
-            n.y = HIT_Y - timeDiff * speed;
+            n.y = HIT_Y + timeDiff * speed;
             if (n.hit) n.fadeOut += dt * 4;
             if (n.glow > 0) n.glow -= dt * 3;
             return true;
