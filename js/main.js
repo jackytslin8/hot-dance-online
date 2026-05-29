@@ -30,25 +30,61 @@ const JUDGE = {
 
 let gameMode = 'normal'; // 'normal' | 'reverse'
 
-// ====== Tap Tempo ======
+// ====== Tap Tempo (Live Mode) ======
 let tapTimes = [];
+let liveMode = false;
+let liveTapCount = 0;
+const TRAVEL_TIME = 2.0; // 箭頭從底部到判定線的秒數
+
 function handleTapTempo() {
-    tapTimes.push(Date.now());
-    if (tapTimes.length > 8) tapTimes.shift();
-    if (tapTimes.length >= 2) {
+    const now = window.audioEngine.getBGMTime();
+    if (!gameStarted || now <= 0) return;
+
+    liveMode = true;
+    tapTimes.push(now);
+    liveTapCount++;
+    if (tapTimes.length > 50) tapTimes.shift();
+
+    // 直接生成一個箭頭，time = now + TRAVEL_TIME
+    const col = Math.floor(Math.random() * 4);
+    const isReverse = (gameMode === 'reverse' && Math.random() < 0.2);
+    engine.notes.push({
+        col,
+        time: now + TRAVEL_TIME,
+        reverse: isReverse,
+        y: CH + 40,
+        hit: false,
+        fadeOut: 0,
+        glow: 0,
+    });
+
+    // 計算即時 BPM
+    if (tapTimes.length >= 3) {
+        const recent = tapTimes.slice(-8);
         const intervals = [];
-        for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i-1]);
-        const avgMs = intervals.reduce((a,b) => a+b, 0) / intervals.length;
-        const bpm = Math.round(60000 / avgMs);
+        for (let i = 1; i < recent.length; i++) intervals.push(recent[i] - recent[i-1]);
+        const avgSec = intervals.reduce((a,b) => a+b, 0) / intervals.length;
+        const bpm = Math.round(60 / avgSec);
         engine.currentSong.bpm = bpm;
-        CONFIG.BPM_OFFSET = 0;
         updateArrowSpeed(bpm);
-        engine.initChart(bpm, window.audioEngine.getLeadIn());
-        engine.chartIndex = 0;
         showBPM(bpm);
     } else {
         showBPM(null);
     }
+
+    showTapCount();
+}
+
+function showTapCount() {
+    let el = document.getElementById('tap-count');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'tap-count';
+        el.style.cssText = 'position:absolute;top:110px;right:16px;font-size:14px;color:#ff0;text-shadow:0 0 6px #ff0;pointer-events:none;z-index:10;';
+        document.getElementById('game-container').appendChild(el);
+    }
+    el.textContent = `🎤 TAP: ${liveTapCount}`;
+    el.style.opacity = 1;
 }
 function showBPM(bpm) {
     let el = document.getElementById('bpm-display');
@@ -58,8 +94,8 @@ function showBPM(bpm) {
         el.style.cssText = 'position:absolute;top:40px;right:16px;font-size:18px;color:#f0f;text-shadow:0 0 8px #f0f;transition:opacity 0.5s;pointer-events:none;z-index:10;text-align:right;';
         document.getElementById('game-container').appendChild(el);
     }
-    const auto = lastDetectedBPM > 0 ? ' 🤖AUTO' : '';
-    el.innerHTML = bpm ? `🎵 ${Number(bpm).toFixed(1)} BPM${auto}` : '🎵 Tap...';
+    const mode = liveMode ? ' 🎤LIVE' : (lastDetectedBPM > 0 ? ' 🤖AUTO' : '');
+    el.innerHTML = bpm ? `🎵 ${Number(bpm).toFixed(1)} BPM${mode}` : '🎵 Tap...';
     el.style.opacity = 1;
     clearTimeout(el._timeout);
     el._timeout = setTimeout(() => el.style.opacity = 0, 4000);
@@ -667,7 +703,7 @@ window.addEventListener('keydown', e => {
     if (e.code === 'BracketLeft') { CONFIG.BPM_OFFSET -= 0.5; applyBPMTweak(); return; }
     if (e.code === 'BracketRight') { CONFIG.BPM_OFFSET += 0.5; applyBPMTweak(); return; }
     if (e.code === 'KeyT') { handleTapTempo(); return; }
-    if (e.code === 'KeyR') { tapTimes = []; showBPM(null); return; }
+    if (e.code === 'KeyR') { tapTimes = []; liveTapCount = 0; liveMode = false; showBPM(null); return; }
 
     if (COLS.includes(e.code)) {
         e.preventDefault();
