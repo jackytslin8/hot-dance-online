@@ -861,7 +861,12 @@ function beginRecording(songId, uploadUrl) {
 
     engine.currentSong = song;
     recordingMode = true;
-    recordedNotes = [];
+    // 如果歌曲已有譜面，載入既有 notes 讓使用者可以接續錄製
+    if (song.chart && song.chart.length > 0) {
+        recordedNotes = song.chart.map(n => ({ time: n.time, col: n.col }));
+    } else {
+        recordedNotes = [];
+    }
     recordSongId = songId;
     recordUploadUrl = uploadUrl;
     recordStartTime = performance.now();
@@ -895,11 +900,15 @@ function updateRecordHUD() {
     const now = window.audioEngine.getBGMTime();
     const min = Math.floor(now / 60);
     const sec = Math.floor(now % 60);
+    // 計算新錄製的數量（不含既有譜面）
+    const existingCount = (engine.currentSong && engine.currentSong.chart) ? engine.currentSong.chart.length : 0;
+    const newCount = Math.max(0, recordedNotes.length - existingCount);
+    const extra = existingCount > 0 ? ` <span style="color:#888;font-size:13px;">(新 ${newCount} + 既有 ${existingCount})</span>` : '';
     el.innerHTML = `
         <div style="font-size:20px;color:#f00;text-shadow:0 0 10px #f00;">🔴 錄製中</div>
-        <div style="font-size:16px;color:#ff0;margin-top:5px;">已記錄 ${recordedNotes.length} 個箭頭</div>
+        <div style="font-size:16px;color:#ff0;margin-top:5px;">已記錄 ${recordedNotes.length} 個箭頭${extra}</div>
         <div style="font-size:14px;color:#0ff;margin-top:3px;">⏱ ${min}:${sec.toString().padStart(2,'0')}</div>
-        <div style="font-size:12px;color:#888;margin-top:8px;">按方向鍵錄製 · 按 <span style="color:#0ff;">空白鍵</span> 結束</div>
+        <div style="font-size:12px;color:#888;margin-top:8px;">按方向鍵錄製新箭頭 · 按 <span style="color:#0ff;">空白鍵</span> 結束並匯出</div>
     `;
 }
 
@@ -912,12 +921,25 @@ function finishRecording() {
     const el = document.getElementById('record-hud');
     if (el) el.style.display = 'none';
 
-    // 整理譜面：按時間排序
-    recordedNotes.sort((a, b) => a.time - b.time);
+    // 整理譜面：新錄製的覆蓋重疊區域的舊譜面
+    const existingCount = (engine.currentSong && engine.currentSong.chart) ? engine.currentSong.chart.length : 0;
+    let allNotes;
+    if (existingCount > 0 && recordedNotes.length > existingCount) {
+        const existing = recordedNotes.slice(0, existingCount);
+        const fresh = recordedNotes.slice(existingCount);
+        // 舊譜面中，只有在新錄製區域之外的才保留
+        const freshMin = Math.min(...fresh.map(n => n.time));
+        const freshMax = Math.max(...fresh.map(n => n.time));
+        const keptOld = existing.filter(n => n.time < freshMin - 1 || n.time > freshMax + 1);
+        allNotes = [...keptOld, ...fresh];
+    } else {
+        allNotes = [...recordedNotes];
+    }
+    allNotes.sort((a, b) => a.time - b.time);
 
     // 移除太密集的重複（間隔 < 50ms 的同列）
     const filtered = [];
-    for (const n of recordedNotes) {
+    for (const n of allNotes) {
         const last = filtered[filtered.length - 1];
         if (last && last.col === n.col && Math.abs(n.time - last.time) < 0.05) continue;
         filtered.push(n);
