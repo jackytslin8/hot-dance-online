@@ -214,7 +214,14 @@ function showClickToStart(onStart) {
     const handler = () => {
         el.style.display = 'none';
         el.removeEventListener('click', handler);
-        onStart();
+        console.log('Click-to-start: calling onStart()');
+        try {
+            onStart();
+            console.log('Click-to-start: onStart() completed');
+        } catch(e) {
+            console.error('Click-to-start error:', e);
+            document.getElementById('song-title').textContent = '❌ Error: ' + e.message;
+        }
     };
     el.addEventListener('click', handler);
 }

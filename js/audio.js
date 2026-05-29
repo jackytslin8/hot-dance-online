@@ -84,26 +84,28 @@ class AudioEngine {
         // 連接 Analyser 做 beat detection
         this._connectAnalyser();
 
-        // 確保 AudioContext 已 resume（瀏覽器自動播放政策）
-        if (this.ctx.state === 'suspended') { this.ctx.resume().then(() => console.log('AudioContext resumed')); }
-        const playPromise = this.bgmAudio.play();
-        if (playPromise !== undefined) {
-            playPromise.then(() => {
-                console.log('MP3 playing OK');
-                window._audioDebug = '🎵 Playing: ' + url;
+        // 確保 AudioContext 已 resume 再播放
+        const doPlay = () => {
+            this._connectAnalyser();
+            this.bgmAudio.play().then(() => {
+                console.log('MP3 playing OK:', url);
             }).catch(e => {
                 console.warn('MP3 play blocked:', e.message);
-                window._audioDebug = '⚠️ Blocked: ' + e.message;
-                // 重試：點擊或按鍵後立即播放
+                const el = document.getElementById('song-title');
+                if (el) el.textContent = '⚠️ 點擊螢幕播放音樂';
                 const retry = () => {
-                    if (this.ctx.state === 'suspended') this.ctx.resume();
-                    this.bgmAudio.play().then(() => { window._audioDebug = '🎵 Retry OK'; }).catch(() => {});
+                    this.bgmAudio.play().catch(() => {});
                     document.removeEventListener('click', retry);
-                    document.removeEventListener('keydown', retry);
+                    document.removeEventListener('touchstart', retry);
                 };
                 document.addEventListener('click', retry);
-                document.addEventListener('keydown', retry);
+                document.addEventListener('touchstart', retry);
             });
+        };
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume().then(doPlay).catch(doPlay);
+        } else {
+            doPlay();
         }
     }
     _connectAnalyser() {
@@ -117,6 +119,12 @@ class AudioEngine {
         } catch(e) {
             console.warn('Analyser connect failed:', e);
             this.analyser = null;
+            // 降級：直接連到輸出（無 beat detection）
+            try {
+                this.ctx.createMediaElementSource(this.bgmAudio).connect(this.ctx.destination);
+            } catch(e2) {
+                console.warn('Fallback audio routing also failed:', e2);
+            }
         }
     }
     // 偵測重拍（低頻能量突增）並追蹤 BPM
