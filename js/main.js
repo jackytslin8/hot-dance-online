@@ -55,13 +55,14 @@ function showBPM(bpm) {
     if (!el) {
         el = document.createElement('div');
         el.id = 'bpm-display';
-        el.style.cssText = 'position:absolute;top:40px;right:16px;font-size:20px;color:#f0f;text-shadow:0 0 8px #f0f;transition:opacity 0.5s;pointer-events:none;z-index:10;';
+        el.style.cssText = 'position:absolute;top:40px;right:16px;font-size:18px;color:#f0f;text-shadow:0 0 8px #f0f;transition:opacity 0.5s;pointer-events:none;z-index:10;text-align:right;';
         document.getElementById('game-container').appendChild(el);
     }
-    el.textContent = bpm ? `🎵 ${bpm.toFixed(1)} BPM` : '🎵 Tap...';
+    const auto = lastDetectedBPM > 0 ? ' 🤖AUTO' : '';
+    el.innerHTML = bpm ? `🎵 ${Number(bpm).toFixed(1)} BPM${auto}` : '🎵 Tap...';
     el.style.opacity = 1;
     clearTimeout(el._timeout);
-    el._timeout = setTimeout(() => el.style.opacity = 0, 3000);
+    el._timeout = setTimeout(() => el.style.opacity = 0, 4000);
 }
 function updateArrowSpeed(bpm) {
     CONFIG.ARROW_SPEED = Math.round(350 * (bpm / 120));
@@ -280,7 +281,8 @@ class GameEngine {
 // ====== 節拍脈動 ======
 let beatPhase = 0;
 let beatPulse = 0;
-let beatFlash = 0;   // 來自音訊偵測的重拍閃爍
+let beatFlash = 0;
+let lastDetectedBPM = 0;
 function updateBeat(dt, bpm) {
     if (bpm <= 0) return;
     const beatDur = 60 / bpm;
@@ -291,6 +293,24 @@ function updateBeat(dt, bpm) {
         beatFlash = 1;
     }
     beatFlash = Math.max(0, beatFlash - dt * 4);
+
+    // 動態 BPM 追蹤
+    const detected = window.audioEngine.getDetectedBPM();
+    if (detected > 0 && Math.abs(detected - lastDetectedBPM) >= 3 && gameStarted) {
+        lastDetectedBPM = detected;
+        engine.currentSong.bpm = detected;
+        CONFIG.BPM_OFFSET = 0;
+        updateArrowSpeed(detected);
+        // 從目前位置重新生成譜面
+        const now = window.audioEngine.getBGMTime();
+        engine.initChart(detected, 0);
+        // 跳過已過的音符
+        engine.chartIndex = 0;
+        while (engine.chartIndex < engine.chart.length && engine.chart[engine.chartIndex].time < now) {
+            engine.chartIndex++;
+        }
+        showBPM(detected);
+    }
 }
 
 // ====== 命中漣漪 ======

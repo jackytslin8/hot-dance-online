@@ -39,6 +39,9 @@ class AudioEngine {
         this.beatDetected = false;
         this._prevEnergy = 0;
         this._beatCallbacks = [];
+        // Dynamic BPM
+        this._beatTimes = [];
+        this.detectedBPM = 0;
     }
     init() {
         if (this.initialized) return;
@@ -93,7 +96,7 @@ class AudioEngine {
             this.analyser = null;
         }
     }
-    // 偵測重拍（低頻能量突增）
+    // 偵測重拍（低頻能量突增）並追蹤 BPM
     detectBeat() {
         if (!this.analyser || !this.freqData) return false;
         this.analyser.getByteFrequencyData(this.freqData);
@@ -101,11 +104,32 @@ class AudioEngine {
         let energy = 0;
         for (let i = 0; i < 10; i++) energy += this.freqData[i];
         energy /= 10;
-        const threshold = this._prevEnergy * 1.4 + 10;
-        const isBeat = energy > threshold && energy > 40;
-        this._prevEnergy = this._prevEnergy * 0.8 + energy * 0.2;
+        const threshold = this._prevEnergy * 1.35 + 8;
+        const isBeat = energy > threshold && energy > 35;
+        this._prevEnergy = this._prevEnergy * 0.85 + energy * 0.15;
+
+        if (isBeat) {
+            const now = performance.now();
+            this._beatTimes.push(now);
+            // 只保留最近 12 拍
+            if (this._beatTimes.length > 12) this._beatTimes.shift();
+            // 計算 BPM
+            if (this._beatTimes.length >= 3) {
+                const intervals = [];
+                for (let i = 1; i < this._beatTimes.length; i++) {
+                    const gap = this._beatTimes[i] - this._beatTimes[i-1];
+                    // 過濾不合理間隔 (30-300 BPM)
+                    if (gap > 200 && gap < 2000) intervals.push(gap);
+                }
+                if (intervals.length >= 2) {
+                    const avgMs = intervals.reduce((a,b) => a+b, 0) / intervals.length;
+                    this.detectedBPM = Math.round(60000 / avgMs);
+                }
+            }
+        }
         return isBeat;
     }
+    getDetectedBPM() { return this.detectedBPM; }
     _playSynth(song) {
         const beatDur = 60 / song.bpm;
         this.startTime = this.ctx.currentTime + 0.1;
