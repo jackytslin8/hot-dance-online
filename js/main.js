@@ -30,61 +30,122 @@ const JUDGE = {
 
 let gameMode = 'normal'; // 'normal' | 'reverse'
 
-// ====== Tap Tempo (Live Mode) ======
+// ====== Tap Tempo (校準模式) ======
 let tapTimes = [];
+let calibrating = false;
 let liveMode = false;
-let liveTapCount = 0;
-const TRAVEL_TIME = 2.0; // 箭頭從底部到判定線的秒數
+const TRAVEL_TIME = 2.0;
 
 function handleTapTempo() {
+    if (!calibrating) return;
     const now = window.audioEngine.getBGMTime();
-    if (!gameStarted || now <= 0) return;
+    if (now <= 0) return;
 
-    liveMode = true;
     tapTimes.push(now);
-    liveTapCount++;
-    if (tapTimes.length > 50) tapTimes.shift();
 
-    // 直接生成一個箭頭，time = now + TRAVEL_TIME
-    const col = Math.floor(Math.random() * 4);
-    const isReverse = (gameMode === 'reverse' && Math.random() < 0.2);
-    engine.notes.push({
-        col,
-        time: now + TRAVEL_TIME,
-        reverse: isReverse,
-        y: CH + 40,
-        hit: false,
-        fadeOut: 0,
-        glow: 0,
-    });
-
-    // 計算即時 BPM
+    // 即時顯示 BPM
     if (tapTimes.length >= 3) {
-        const recent = tapTimes.slice(-8);
+        const recent = tapTimes.slice(-12);
         const intervals = [];
         for (let i = 1; i < recent.length; i++) intervals.push(recent[i] - recent[i-1]);
         const avgSec = intervals.reduce((a,b) => a+b, 0) / intervals.length;
         const bpm = Math.round(60 / avgSec);
-        engine.currentSong.bpm = bpm;
-        updateArrowSpeed(bpm);
-        showBPM(bpm);
+        showCalibInfo(bpm, tapTimes.length);
     } else {
-        showBPM(null);
+        showCalibInfo(null, tapTimes.length);
     }
-
-    showTapCount();
 }
 
-function showTapCount() {
-    let el = document.getElementById('tap-count');
+function showCalibInfo(bpm, count) {
+    let el = document.getElementById('calib-info');
     if (!el) {
         el = document.createElement('div');
-        el.id = 'tap-count';
-        el.style.cssText = 'position:absolute;top:110px;right:16px;font-size:14px;color:#ff0;text-shadow:0 0 6px #ff0;pointer-events:none;z-index:10;';
+        el.id = 'calib-info';
+        el.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:300;pointer-events:none;';
         document.getElementById('game-container').appendChild(el);
     }
-    el.textContent = `🎤 TAP: ${liveTapCount}`;
-    el.style.opacity = 1;
+    const bpmText = bpm ? `<div style="font-size:48px;color:#ff0;text-shadow:0 0 20px #ff0;">🎵 ${bpm} BPM</div>` : '';
+    el.innerHTML = `
+        <div style="font-size:28px;color:#ff00ff;text-shadow:0 0 15px #f0f;margin-bottom:15px;">🎤 跟著音樂按 T 打拍子</div>
+        ${bpmText}
+        <div style="font-size:20px;color:#0ff;margin-top:10px;">已打 ${count} 拍</div>
+        <div style="font-size:16px;color:#888;margin-top:20px;">打好後按 <span style="color:#0ff;border:1px solid #0ff;padding:2px 8px;border-radius:3px;">空白鍵</span> 開始遊戲</div>
+    `;
+}
+
+function startCalibration(songId, uploadUrl) {
+    const song = SONGS[songId] || SONGS[0];
+    document.getElementById('song-title').textContent = song.title;
+    currentScene = SCENES[Math.floor(Math.random() * SCENES.length)];
+
+    window.audioEngine.init();
+    window.audioEngine.playBGM(songId, uploadUrl);
+
+    engine.currentSong = song;
+    calibrating = true;
+    tapTimes = [];
+
+    // 顯示校準畫面
+    showCalibInfo(null, 0);
+}
+
+function finishCalibration() {
+    if (tapTimes.length < 2) {
+        // 沒打拍子，用預設 BPM
+        const bpm = engine.currentSong ? engine.currentSong.bpm : 120;
+        updateArrowSpeed(bpm);
+        engine.initChart(bpm, window.audioEngine.getLeadIn());
+    } else {
+        // 用校準資料計算 BPM 和 offset
+        const intervals = [];
+        for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i-1]);
+        const avgSec = intervals.reduce((a,b) => a+b, 0) / intervals.length;
+        const bpm = Math.round(60 / avgSec);
+
+        engine.currentSong.bpm = bpm;
+        updateArrowSpeed(bpm);
+
+        // 計算第一拍在音樂中的位置（用來對齊譜面）
+        const firstBeat = tapTimes[0];
+        const beatDur = 60 / bpm;
+        // 找出第一拍應該在哪個 beat 位置
+        const offsetBeats = Math.round(firstBeat / beatDur);
+        const timeOffset = firstBeat - offsetBeats * beatDur;
+
+        // 生成譜面，考慮 offset
+        engine.chart = [];
+        for (let beat = 0; beat < 500; beat++) {
+            const time = timeOffset + beat * beatDur;
+            if (time < firstBeat - beatDur) continue;
+            const pos = beat % 4;
+            let prob = 0;
+            if (pos === 0) prob = 1.0;
+            else if (pos === 2) prob = 0.7;
+            else prob = 0.3;
+            if (Math.random() < prob) {
+                const col = Math.floor(Math.random() * 4);
+                const isReverse = (gameMode === 'reverse' && Math.random() < 0.2);
+                engine.chart.push({ time, col, reverse: isReverse });
+            }
+        }
+        engine.totalNotes = engine.chart.length;
+
+        // 跳過已過的音符
+        const now = window.audioEngine.getBGMTime();
+        engine.chartIndex = 0;
+        while (engine.chartIndex < engine.chart.length && engine.chart[engine.chartIndex].time < now) {
+            engine.chartIndex++;
+        }
+
+        liveMode = true;
+        showBPM(bpm);
+    }
+
+    // 隱藏校準畫面
+    const el = document.getElementById('calib-info');
+    if (el) el.style.display = 'none';
+    calibrating = false;
+    gameStarted = true;
 }
 function showBPM(bpm) {
     let el = document.getElementById('bpm-display');
@@ -674,28 +735,22 @@ if (dropZone) {
 // ====== 開始遊戲 ======
 function startGame(songId, uploadUrl) {
     if (gameStarted) return;
-    gameStarted = true;
 
     document.getElementById('song-select').style.display = 'none';
 
-    const song = SONGS[songId] || SONGS[0];
-    document.getElementById('song-title').textContent = song.title;
-
-    // 隨機場景
-    currentScene = SCENES[Math.floor(Math.random() * SCENES.length)];
-
-    window.audioEngine.init();
-    window.audioEngine.playBGM(songId, uploadUrl);
-
-    const bpm = song.bpm;
-    updateArrowSpeed(bpm);
-    engine.currentSong = song;
-    engine.initChart(bpm, window.audioEngine.getLeadIn());
-    engine.chartIndex = 0;
+    // 先進入校準模式
+    startCalibration(songId, uploadUrl);
 }
 
 // ====== 鍵盤 ======
 window.addEventListener('keydown', e => {
+    // 校準模式：T 打拍子，空白鍵開始遊戲
+    if (calibrating) {
+        if (e.code === 'KeyT') { handleTapTempo(); return; }
+        if (e.code === 'Space') { e.preventDefault(); finishCalibration(); return; }
+        return;
+    }
+
     if (!gameStarted) return;
 
     if (e.code === 'Equal' || e.code === 'NumpadAdd') { CONFIG.OFFSET += 0.05; showOffset(); return; }
@@ -703,7 +758,7 @@ window.addEventListener('keydown', e => {
     if (e.code === 'BracketLeft') { CONFIG.BPM_OFFSET -= 0.5; applyBPMTweak(); return; }
     if (e.code === 'BracketRight') { CONFIG.BPM_OFFSET += 0.5; applyBPMTweak(); return; }
     if (e.code === 'KeyT') { handleTapTempo(); return; }
-    if (e.code === 'KeyR') { tapTimes = []; liveTapCount = 0; liveMode = false; showBPM(null); return; }
+    if (e.code === 'KeyR') { tapTimes = []; liveMode = false; showBPM(null); return; }
 
     if (COLS.includes(e.code)) {
         e.preventDefault();
