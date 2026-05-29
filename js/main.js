@@ -843,9 +843,8 @@ function startDirect(songId, uploadUrl) {
     document.getElementById('song-title').textContent = song.title;
     currentScene = SCENES[Math.floor(Math.random() * SCENES.length)];
 
-    window.audioEngine.init();
-
-    // 顯示「點擊開始」確保音訊在用戶手勢中播放
+    // 不在這裡 init！等用戶點擊 overlay 時再 init（在 playBGM 內部）
+    // 這樣 AudioContext 是在用戶手勢的 call stack 中建立的
     showClickToStart(() => {
         window.audioEngine.playBGM(songId, uploadUrl);
     });
