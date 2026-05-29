@@ -30,11 +30,12 @@ const JUDGE = {
 
 let gameMode = 'normal'; // 'normal' | 'reverse'
 
-// ====== Tap Tempo (校準模式) ======
+// ====== 校準模式 ======
 let tapTimes = [];
 let calibrating = false;
 let liveMode = false;
-const TRAVEL_TIME = 2.0;
+let beatDetectedTimes = []; // 音訊偵測到的重拍時間
+let userTapTimes = [];     // 使用者按方向鍵的時間
 
 function handleTapTempo() {
     if (!calibrating) return;
@@ -61,7 +62,7 @@ function showCalibInfo(bpm, count) {
     if (!el) {
         el = document.createElement('div');
         el.id = 'calib-info';
-        el.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:300;pointer-events:none;';
+        el.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:300;pointer-events:none;width:400px;';
         document.getElementById('game-container').appendChild(el);
     }
     const bpmText = bpm ? `<div style="font-size:48px;color:#ff0;text-shadow:0 0 20px #ff0;">🎵 ${bpm} BPM</div>` : '';
@@ -84,35 +85,74 @@ function startCalibration(songId, uploadUrl) {
     engine.currentSong = song;
     calibrating = true;
     tapTimes = [];
+    beatDetectedTimes = [];
+    userTapTimes = [];
 
-    // 顯示校準畫面
     showCalibInfo(null, 0);
+
+    // 開始偵測重拍並記錄
+    startBeatTracking();
+}
+
+function startBeatTracking() {
+    // 每幀檢查是否有重拍
+    function track() {
+        if (!calibrating) return;
+        if (window.audioEngine.detectBeat()) {
+            beatDetectedTimes.push(window.audioEngine.getBGMTime());
+            // 螢幕閃一下表示偵測到重拍
+            beatFlash = 0.5;
+        }
+        requestAnimationFrame(track);
+    }
+    requestAnimationFrame(track);
 }
 
 function finishCalibration() {
     if (tapTimes.length < 2) {
-        // 沒打拍子，用預設 BPM
+        // 沒打拍子，用預設
         const bpm = engine.currentSong ? engine.currentSong.bpm : 120;
         updateArrowSpeed(bpm);
         engine.initChart(bpm, window.audioEngine.getLeadIn());
     } else {
-        // 用校準資料計算 BPM 和 offset
+        // 計算 BPM
         const intervals = [];
         for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i-1]);
         const avgSec = intervals.reduce((a,b) => a+b, 0) / intervals.length;
         const bpm = Math.round(60 / avgSec);
-
         engine.currentSong.bpm = bpm;
         updateArrowSpeed(bpm);
 
-        // 計算第一拍在音樂中的位置（用來對齊譜面）
-        const firstBeat = tapTimes[0];
+        // 計算 offset：比較使用者拍子和偵測到的重拍
+        let offsetSum = 0;
+        let offsetCount = 0;
+        for (const ut of tapTimes) {
+            // 找最近的偵測重拍
+            let closest = Infinity;
+            for (const bt of beatDetectedTimes) {
+                const diff = Math.abs(ut - bt);
+                if (diff < closest) closest = diff;
+            }
+            if (closest < 0.5) { // 在 0.5 秒內算有效
+                // 計算使用者拍子相對於偵測重拍的偏移
+                const nearestBeat = beatDetectedTimes.reduce((best, bt) =>
+                    Math.abs(ut - bt) < Math.abs(ut - best) ? bt : best
+                );
+                offsetSum += (ut - nearestBeat);
+                offsetCount++;
+            }
+        }
+        if (offsetCount > 0) {
+            CONFIG.OFFSET = offsetSum / offsetCount;
+            console.log('Auto offset:', CONFIG.OFFSET, 'from', offsetCount, 'samples');
+        }
+
+        // 生成譜面
         const beatDur = 60 / bpm;
-        // 找出第一拍應該在哪個 beat 位置
+        const firstBeat = tapTimes[0];
         const offsetBeats = Math.round(firstBeat / beatDur);
         const timeOffset = firstBeat - offsetBeats * beatDur;
 
-        // 生成譜面，考慮 offset
         engine.chart = [];
         for (let beat = 0; beat < 500; beat++) {
             const time = timeOffset + beat * beatDur;
@@ -130,7 +170,6 @@ function finishCalibration() {
         }
         engine.totalNotes = engine.chart.length;
 
-        // 跳過已過的音符
         const now = window.audioEngine.getBGMTime();
         engine.chartIndex = 0;
         while (engine.chartIndex < engine.chart.length && engine.chart[engine.chartIndex].time < now) {
@@ -139,9 +178,9 @@ function finishCalibration() {
 
         liveMode = true;
         showBPM(bpm);
+        showOffset();
     }
 
-    // 隱藏校準畫面
     const el = document.getElementById('calib-info');
     if (el) el.style.display = 'none';
     calibrating = false;
