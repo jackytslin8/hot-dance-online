@@ -86,33 +86,39 @@ class AudioEngine {
         this.bgmAudio = new Audio();
         this.bgmAudio.src = url;
         this.bgmAudio.loop = true;
-        this.bgmAudio.crossOrigin = 'anonymous';
+        this.bgmAudio.preload = 'auto';
 
-        // 連接 Analyser 做 beat detection
-        this._connectAnalyser();
+        // ⚡ 關鍵：先 play()（在使用者手勢的同步 call stack 中），
+        // 再處理 AudioContext resume + analyser 連接
+        const playPromise = this.bgmAudio.play();
 
-        // 確保 AudioContext 已 resume 再播放
-        const doPlay = () => {
+        // 連接 Analyser（可失敗，不影響播放）
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().then(() => this._connectAnalyser()).catch(() => {});
+        } else {
             this._connectAnalyser();
-            this.bgmAudio.play().then(() => {
+        }
+
+        if (playPromise) {
+            playPromise.then(() => {
                 console.log('MP3 playing OK:', url);
             }).catch(e => {
                 console.warn('MP3 play blocked:', e.message);
+                // 顯示提示，等用戶下次互動時重試
                 const el = document.getElementById('song-title');
                 if (el) el.textContent = '⚠️ 點擊螢幕播放音樂';
                 const retry = () => {
-                    this.bgmAudio.play().catch(() => {});
+                    this.bgmAudio.play().then(() => {
+                        if (el) el.textContent = this.currentSong ? this.currentSong.title : '';
+                    }).catch(() => {});
                     document.removeEventListener('click', retry);
                     document.removeEventListener('touchstart', retry);
+                    document.removeEventListener('keydown', retry);
                 };
                 document.addEventListener('click', retry);
                 document.addEventListener('touchstart', retry);
+                document.addEventListener('keydown', retry);
             });
-        };
-        if (this.ctx.state === 'suspended') {
-            this.ctx.resume().then(doPlay).catch(doPlay);
-        } else {
-            doPlay();
         }
     }
     _connectAnalyser() {

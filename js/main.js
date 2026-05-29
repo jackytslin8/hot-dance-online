@@ -843,12 +843,6 @@ function startDirect(songId, uploadUrl) {
     document.getElementById('song-title').textContent = song.title;
     currentScene = SCENES[Math.floor(Math.random() * SCENES.length)];
 
-    // 不在這裡 init！等用戶點擊 overlay 時再 init（在 playBGM 內部）
-    // 這樣 AudioContext 是在用戶手勢的 call stack 中建立的
-    showClickToStart(() => {
-        window.audioEngine.playBGM(songId, uploadUrl);
-    });
-
     engine.currentSong = song;
     engine.score = 0;
     engine.combo = 0;
@@ -865,10 +859,14 @@ function startDirect(songId, uploadUrl) {
     updateArrowSpeed(bpm);
     engine.initChart(bpm, 0, song.chart);
 
-    gameStarted = true;
     gameMode = document.querySelector('.mode-btn.active')?.dataset.mode || 'normal';
-
     showBPM(bpm);
+
+    // ⚡ 等用戶點擊 overlay 後才啟動音樂 + 遊戲
+    showClickToStart(() => {
+        window.audioEngine.playBGM(songId, uploadUrl);
+        gameStarted = true;  // 音樂開始後才啟動遊戲迴圈
+    });
 }
 
 // ====== 錄製譜面模式 ======
