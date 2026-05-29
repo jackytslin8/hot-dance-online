@@ -84,7 +84,15 @@ class AudioEngine {
         // 連接 Analyser 做 beat detection
         this._connectAnalyser();
 
-        this.bgmAudio.play().then(() => console.log('MP3 playing')).catch(e => console.warn('MP3 play failed:', e));
+        // 確保 AudioContext 已 resume（瀏覽器自動播放政策）
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        this.bgmAudio.play().then(() => console.log('MP3 playing')).catch(e => {
+            console.warn('MP3 play failed:', e);
+            // 重試：等用戶互動後再播
+            const retry = () => { this.bgmAudio.play().catch(() => {}); document.removeEventListener('click', retry); document.removeEventListener('keydown', retry); };
+            document.addEventListener('click', retry);
+            document.addEventListener('keydown', retry);
+        });
     }
     _connectAnalyser() {
         try {

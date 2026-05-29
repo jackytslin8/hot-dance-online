@@ -88,6 +88,7 @@ function startCalibration(songId, uploadUrl) {
     window.audioEngine.playBGM(songId, uploadUrl);
 
     engine.currentSong = song;
+    engine.currentSong.hasChart = (song.chart && song.chart.length > 0);
     calibrating = true;
     tapTimes = [];
     beatDetectedTimes = [];
@@ -115,10 +116,10 @@ function startBeatTracking() {
 
 function finishCalibration() {
     if (tapTimes.length < 2) {
-        // 沒打拍子，用預設
+        // 沒打拍子，用預設 BPM 或歌曲的譜面
         const bpm = engine.currentSong ? engine.currentSong.bpm : 120;
         updateArrowSpeed(bpm);
-        engine.initChart(bpm, window.audioEngine.getLeadIn());
+        engine.initChart(bpm, window.audioEngine.getLeadIn(), engine.currentSong.chart);
     } else {
         // 計算 BPM
         const intervals = [];
@@ -798,8 +799,44 @@ function startGame(songId, uploadUrl) {
 
     document.getElementById('song-select').style.display = 'none';
 
-    // 先進入校準模式
-    startCalibration(songId, uploadUrl);
+    const song = SONGS[songId] || SONGS[0];
+    if (song.chart && song.chart.length > 0) {
+        // 已有譜面 → 直接開始，跳過校準
+        startDirect(songId, uploadUrl);
+    } else {
+        // 沒譜面 → 進入校準模式
+        startCalibration(songId, uploadUrl);
+    }
+}
+
+function startDirect(songId, uploadUrl) {
+    const song = SONGS[songId] || SONGS[0];
+    document.getElementById('song-title').textContent = song.title;
+    currentScene = SCENES[Math.floor(Math.random() * SCENES.length)];
+
+    window.audioEngine.init();
+    window.audioEngine.playBGM(songId, uploadUrl);
+
+    engine.currentSong = song;
+    engine.score = 0;
+    engine.combo = 0;
+    engine.maxCombo = 0;
+    engine.notes = [];
+    engine.fever = 0;
+    engine.feverActive = false;
+    engine.judgeEffects = [];
+    engine.particles = [];
+    engine.calories = 0;
+    engine.hitNotes = 0;
+
+    const bpm = song.bpm + CONFIG.BPM_OFFSET;
+    updateArrowSpeed(bpm);
+    engine.initChart(bpm, 0, song.chart);
+
+    gameStarted = true;
+    gameMode = document.querySelector('.mode-btn.active')?.dataset.mode || 'normal';
+
+    showBPM(bpm);
 }
 
 // ====== 錄製譜面模式 ======
