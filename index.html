@@ -5,57 +5,50 @@
     <title>熱舞 Online - Retro Dance</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
-            background: #000;
+            background: #111;
             color: #fff;
             overflow: hidden;
-            font-family: 'Courier New', monospace;
+            font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
         }
-
         #game-container { position: relative; }
-
         canvas {
             display: block;
             border: 3px solid #ff00ff;
-            box-shadow: 0 0 20px #ff00ff, 0 0 60px rgba(255,0,255,0.3);
+            box-shadow: 0 0 30px rgba(255,0,255,0.4);
+            border-radius: 4px;
         }
-
         .hud {
             position: absolute;
-            top: 10px;
-            left: 0;
-            width: 100%;
+            top: 8px; left: 0; width: 100%;
             display: flex;
             justify-content: space-between;
-            padding: 0 20px;
+            padding: 0 16px;
             pointer-events: none;
+            z-index: 10;
         }
-
         #score {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: bold;
-            text-shadow: 0 0 10px #fff;
             color: #fff;
+            text-shadow: 0 0 10px #fff;
         }
-
         #song-title {
-            font-size: 18px;
+            font-size: 16px;
             color: #0ff;
-            text-shadow: 0 0 10px #0ff;
+            text-shadow: 0 0 8px #0ff;
         }
-
         #combo-text {
             position: absolute;
-            top: 50%;
+            top: 45%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 48px;
+            font-size: 52px;
             font-weight: bold;
             color: #ffff00;
             text-shadow: 0 0 20px #ff0, 0 0 40px #f80;
@@ -63,13 +56,27 @@
             transition: all 0.1s;
             pointer-events: none;
             white-space: nowrap;
+            z-index: 10;
+        }
+        #judge-text {
+            position: absolute;
+            top: 18%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 36px;
+            font-weight: bold;
+            opacity: 0;
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 10;
+            transition: opacity 0.15s;
         }
 
         /* 選曲畫面 */
         #song-select {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.95);
+            background: rgba(0,0,0,0.96);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -77,126 +84,107 @@
             z-index: 200;
             padding: 20px;
         }
-
         #song-select h1 {
-            font-size: 32px;
+            font-size: 36px;
             color: #ff00ff;
             text-shadow: 0 0 20px #f0f, 0 0 40px #f0f;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
             animation: pulse 1.5s infinite;
         }
-
         #song-select .subtitle {
             color: #888;
-            font-size: 14px;
-            margin-bottom: 20px;
+            font-size: 13px;
+            margin-bottom: 16px;
         }
-
         .song-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
             width: 100%;
-            max-width: 500px;
-            max-height: 60vh;
+            max-width: 480px;
+            max-height: 55vh;
             overflow-y: auto;
         }
-
+        .song-list::-webkit-scrollbar { width: 4px; }
+        .song-list::-webkit-scrollbar-thumb { background: #f0f; border-radius: 2px; }
         .song-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 20px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
+            padding: 10px 16px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
         }
-
         .song-item:hover {
-            background: rgba(255,0,255,0.2);
+            background: rgba(255,0,255,0.15);
             border-color: #ff00ff;
             transform: scale(1.02);
         }
-
-        .upload-area {
-            margin-top: 15px;
-            text-align: center;
-        }
-
+        .song-item .title { font-size: 15px; color: #fff; }
+        .song-item .bpm { font-size: 13px; color: #0ff; min-width: 70px; text-align: right; }
+        .upload-area { margin-top: 12px; text-align: center; }
         .upload-btn {
-            background: rgba(0,255,255,0.1);
+            background: rgba(0,255,255,0.08);
             border: 1px dashed #0ff;
             color: #0ff;
-            padding: 12px 30px;
-            font-size: 16px;
-            border-radius: 8px;
+            padding: 10px 24px;
+            font-size: 14px;
+            border-radius: 6px;
             cursor: pointer;
-            font-family: 'Courier New', monospace;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .upload-btn:hover { background: rgba(0,255,255,0.25); }
+        #drop-zone {
+            margin-top: 8px;
+            padding: 12px;
+            border: 1px dashed #444;
+            border-radius: 6px;
+            color: #555;
+            font-size: 12px;
             transition: all 0.2s;
         }
 
-        .upload-btn:hover {
-            background: rgba(0,255,255,0.3);
+        /* 模式選擇 */
+        .mode-select {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
         }
-
-        .song-item .title {
-            font-size: 16px;
-            color: #fff;
-        }
-
-        .song-item .bpm {
-            font-size: 14px;
-            color: #0ff;
-            min-width: 80px;
-            text-align: right;
-        }
-
-        /* 開始提示 */
-        #start-overlay {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.8);
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            cursor: pointer;
-        }
-
-        #start-overlay h1 {
-            font-size: 36px;
-            color: #ff00ff;
-            text-shadow: 0 0 20px #f0f, 0 0 40px #f0f;
-            margin-bottom: 20px;
-            animation: pulse 1.5s infinite;
-        }
-
-        #start-overlay p {
+        .mode-btn {
+            padding: 6px 16px;
+            border: 1px solid #555;
+            background: transparent;
             color: #aaa;
-            font-size: 16px;
-            margin: 5px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 13px;
+            transition: all 0.2s;
         }
-
-        .key-hint {
-            color: #0ff;
-            border: 1px solid #0ff;
-            padding: 2px 8px;
-            margin: 0 3px;
-            border-radius: 3px;
+        .mode-btn.active {
+            border-color: #ff00ff;
+            color: #ff00ff;
+            background: rgba(255,0,255,0.1);
         }
+        .mode-btn:hover { border-color: #f0f; color: #f0f; }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.8; transform: scale(1.05); }
         }
+        @keyframes combo-pop {
+            0% { transform: translate(-50%, -50%) scale(1.3); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
     </style>
 </head>
 <body>
     <div id="game-container">
-        <canvas id="gameCanvas" width="900" height="500"></canvas>
+        <canvas id="gameCanvas" width="500" height="700"></canvas>
 
         <div class="hud">
             <div id="score">SCORE: 0</div>
@@ -204,30 +192,22 @@
         </div>
 
         <div id="combo-text"></div>
+        <div id="judge-text"></div>
 
         <!-- 選曲畫面 -->
         <div id="song-select">
-            <h1>🎵 熱舞 ONLINE 🎵</h1>
-            <div class="subtitle">選擇一首歌曲開始遊戲</div>
-            <div class="song-list" id="song-list"></div>
-            <div class="upload-area" id="upload-area">
-                <input type="file" id="mp3-upload" accept="audio/mp3,audio/*" style="display:none">
-                <button class="upload-btn" onclick="document.getElementById('mp3-upload').click()">📁 上傳自己的 MP3</button>
-                <div id="drop-zone" style="margin-top:10px;padding:15px;border:1px dashed #555;border-radius:8px;color:#666;font-size:13px;">或將 MP3 拖放到這裡</div>
+            <h1>💃 熱舞 ONLINE 💃</h1>
+            <div class="subtitle">經典舞蹈遊戲重現</div>
+            <div class="mode-select">
+                <button class="mode-btn active" data-mode="normal">一般模式</button>
+                <button class="mode-btn" data-mode="reverse">反鍵模式</button>
             </div>
-        </div>
-
-        <!-- 遊戲開始提示 -->
-        <div id="start-overlay">
-            <h1 id="overlay-title">🎵 熱舞 ONLINE 🎵</h1>
-            <p>方向鍵 <span class="key-hint">↑ ↓ ← →</span> 在箭頭到達判定線時按下對應方向</p>
-            <p>就這樣！不需要按空白鍵 ✨</p>
-            <p style="margin-top:10px;color:#888;font-size:13px;">遊戲中調整：</p>
-            <p style="color:#888;font-size:13px;"><span class="key-hint">+</span> <span class="key-hint">-</span> 判定時機偏移</p>
-            <p style="color:#888;font-size:13px;"><span class="key-hint">T</span> Tap Tempo（跟著音樂打拍子自動算 BPM）</p>
-            <p style="color:#888;font-size:13px;"><span class="key-hint">[</span> <span class="key-hint">]</span> 手動微調 BPM</p>
-            <p style="color:#888;font-size:13px;"><span class="key-hint">R</span> 重置 Tap Tempo</p>
-            <p style="margin-top: 20px; color: #ff0;">>>> 點擊任意處開始 <<<</p>
+            <div class="song-list" id="song-list"></div>
+            <div class="upload-area">
+                <input type="file" id="mp3-upload" accept="audio/*" style="display:none">
+                <button class="upload-btn" onclick="document.getElementById('mp3-upload').click()">📁 上傳 MP3</button>
+                <div id="drop-zone">拖放 MP3 到這裡</div>
+            </div>
         </div>
     </div>
 
