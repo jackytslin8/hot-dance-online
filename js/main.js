@@ -197,6 +197,28 @@ function finishCalibration() {
     calibrating = false;
     gameStarted = true;
 }
+function showClickToStart(onStart) {
+    let el = document.getElementById('click-to-start');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'click-to-start';
+        el.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:500;cursor:pointer;background:rgba(0,0,0,0.7);';
+        document.getElementById('game-container').appendChild(el);
+    }
+    el.style.display = 'flex';
+    el.innerHTML = `
+        <div style="font-size:48px;animation:pulse 1.5s infinite;">▶</div>
+        <div style="font-size:24px;color:#ff0;margin-top:15px;text-shadow:0 0 15px #ff0;">點擊開始</div>
+        <div style="font-size:14px;color:#888;margin-top:8px;">點擊螢幕開始播放音樂</div>
+    `;
+    const handler = () => {
+        el.style.display = 'none';
+        el.removeEventListener('click', handler);
+        onStart();
+    };
+    el.addEventListener('click', handler);
+}
+
 function showBPM(bpm) {
     let el = document.getElementById('bpm-display');
     if (!el) {
@@ -815,7 +837,11 @@ function startDirect(songId, uploadUrl) {
     currentScene = SCENES[Math.floor(Math.random() * SCENES.length)];
 
     window.audioEngine.init();
-    window.audioEngine.playBGM(songId, uploadUrl);
+
+    // 顯示「點擊開始」確保音訊在用戶手勢中播放
+    showClickToStart(() => {
+        window.audioEngine.playBGM(songId, uploadUrl);
+    });
 
     engine.currentSong = song;
     engine.score = 0;

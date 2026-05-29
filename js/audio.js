@@ -85,14 +85,26 @@ class AudioEngine {
         this._connectAnalyser();
 
         // 確保 AudioContext 已 resume（瀏覽器自動播放政策）
-        if (this.ctx.state === 'suspended') this.ctx.resume();
-        this.bgmAudio.play().then(() => console.log('MP3 playing')).catch(e => {
-            console.warn('MP3 play failed:', e);
-            // 重試：等用戶互動後再播
-            const retry = () => { this.bgmAudio.play().catch(() => {}); document.removeEventListener('click', retry); document.removeEventListener('keydown', retry); };
-            document.addEventListener('click', retry);
-            document.addEventListener('keydown', retry);
-        });
+        if (this.ctx.state === 'suspended') { this.ctx.resume().then(() => console.log('AudioContext resumed')); }
+        const playPromise = this.bgmAudio.play();
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
+                console.log('MP3 playing OK');
+                window._audioDebug = '🎵 Playing: ' + url;
+            }).catch(e => {
+                console.warn('MP3 play blocked:', e.message);
+                window._audioDebug = '⚠️ Blocked: ' + e.message;
+                // 重試：點擊或按鍵後立即播放
+                const retry = () => {
+                    if (this.ctx.state === 'suspended') this.ctx.resume();
+                    this.bgmAudio.play().then(() => { window._audioDebug = '🎵 Retry OK'; }).catch(() => {});
+                    document.removeEventListener('click', retry);
+                    document.removeEventListener('keydown', retry);
+                };
+                document.addEventListener('click', retry);
+                document.addEventListener('keydown', retry);
+            });
+        }
     }
     _connectAnalyser() {
         try {
