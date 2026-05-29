@@ -294,7 +294,9 @@ class GameEngine {
         if (note) {
             const x = COL_X[note.col];
             this.addJudgeEffect(judge.name, judge.color, x, JUDGE_Y - 30);
-            this.spawnParticles(x, JUDGE_Y, judge.color, judge.combo ? 10 : 4);
+            this.spawnParticles(x, JUDGE_Y, judge.color, judge.combo ? 12 : 5);
+            spawnHitRipple(note.col, judge.color);
+            flashCol(note.col);
             note.glow = 1;
         }
         // Combo pop
@@ -393,6 +395,51 @@ class GameEngine {
     }
 }
 
+// ====== 節拍脈動 ======
+let beatPhase = 0;
+let beatPulse = 0;
+function updateBeat(dt, bpm) {
+    if (bpm <= 0) return;
+    const beatDur = 60 / bpm;
+    beatPhase = (beatPhase + dt) % beatDur;
+    // 脈動在拍子點瞬間最強，然後快速衰減
+    beatPulse = Math.max(0, 1 - (beatPhase / beatDur) * 4);
+}
+
+// ====== 命中漣漪 ======
+let hitRipples = [];
+function spawnHitRipple(col, color) {
+    hitRipples.push({ x: COL_X[col], y: JUDGE_Y, r: 20, maxR: 50, alpha: 0.8, color });
+}
+
+// ====== 列閃爍 ======
+let colFlash = [0, 0, 0, 0];
+function flashCol(col) { colFlash[col] = 1; }
+
+// ====== 背景星星 ======
+const stars = [];
+for (let i = 0; i < 40; i++) {
+    stars.push({
+        x: Math.random() * CW,
+        y: Math.random() * CH,
+        size: Math.random() * 2 + 0.5,
+        speed: Math.random() * 15 + 5,
+        alpha: Math.random() * 0.5 + 0.1,
+    });
+}
+function updateStars(dt) {
+    stars.forEach(s => {
+        s.y -= s.speed * dt;
+        if (s.y < -5) { s.y = CH + 5; s.x = Math.random() * CW; }
+    });
+}
+function drawStars() {
+    stars.forEach(s => {
+        ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
+        ctx.fillRect(s.x, s.y, s.size, s.size);
+    });
+}
+
 // ====== 全域 ======
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -427,29 +474,69 @@ function drawBackground() {
 }
 
 function drawJudgeLine() {
+    // 列底光圈
+    COLS.forEach((_, i) => {
+        if (colFlash[i] > 0) {
+            ctx.save();
+            ctx.globalAlpha = colFlash[i] * 0.4;
+            const grad = ctx.createRadialGradient(COL_X[i], JUDGE_Y + 10, 0, COL_X[i], JUDGE_Y + 10, 60);
+            grad.addColorStop(0, COL_COLORS[i]);
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.fillRect(COL_X[i] - 60, JUDGE_Y - 50, 120, 120);
+            ctx.restore();
+            colFlash[i] = Math.max(0, colFlash[i] - 0.06);
+        }
+    });
+
     // 判定區域背景
-    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.fillStyle = `rgba(255,255,255,${0.03 + beatPulse * 0.04})`;
     ctx.fillRect(0, JUDGE_Y - 25, CW, 50);
 
-    // 判定線
+    // 判定線 - 跟著 BPM 脈動
     const color = engine.feverActive ? '#ff0' : currentScene.accent;
+    const lineWidth = 3 + beatPulse * 2;
     ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = lineWidth;
     ctx.shadowColor = color;
-    ctx.shadowBlur = 15;
+    ctx.shadowBlur = 15 + beatPulse * 15;
     ctx.beginPath();
     ctx.moveTo(30, JUDGE_Y);
     ctx.lineTo(CW - 30, JUDGE_Y);
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // 列標記
+    // 列標記 - 跟著脈動
     COLS.forEach((_, i) => {
+        const r = 22 + beatPulse * 4;
         ctx.strokeStyle = COL_COLORS[i];
         ctx.lineWidth = 2;
+        ctx.shadowColor = COL_COLORS[i];
+        ctx.shadowBlur = 5 + beatPulse * 8;
         ctx.beginPath();
-        ctx.arc(COL_X[i], JUDGE_Y, 22, 0, Math.PI * 2);
+        ctx.arc(COL_X[i], JUDGE_Y, r, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.shadowBlur = 0;
+    });
+}
+
+function drawHitRipples() {
+    hitRipples = hitRipples.filter(r => {
+        r.r += 120 * (1/60);
+        r.alpha -= 0.03;
+        if (r.alpha <= 0) return false;
+        ctx.save();
+        ctx.globalAlpha = r.alpha;
+        ctx.strokeStyle = r.color;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = r.color;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+        return true;
     });
 }
 
@@ -461,6 +548,23 @@ function drawArrow(x, y, col, alpha, filled, glow, color) {
 
     const s = 18;
     const c = COLS[col];
+
+    // 光跡尾巴（非 hit 的箭頭）
+    if (!filled && alpha > 0.5) {
+        ctx.globalAlpha = alpha * 0.25;
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 12;
+        for (let t = 1; t <= 3; t++) {
+            ctx.globalAlpha = alpha * (0.12 / t);
+            ctx.beginPath();
+            ctx.ellipse(0, t * 12, s * 0.5, s * 0.3, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = alpha;
+        ctx.shadowBlur = glow > 0 ? 20 * glow : 0;
+    }
+
     ctx.beginPath();
     if (c === 'ArrowUp') {
         ctx.moveTo(0, -s); ctx.lineTo(-s*0.7, s*0.4); ctx.lineTo(-s*0.25, s*0.4);
@@ -684,12 +788,17 @@ function gameLoop(now) {
 
     if (gameStarted) {
         engine.update(dt);
+        const bpm = engine.currentSong ? engine.currentSong.bpm : 120;
+        updateBeat(dt, bpm);
+        updateStars(dt);
     }
 
     drawBackground();
     if (gameStarted) {
+        drawStars();
         drawJudgeLine();
         drawNotes();
+        drawHitRipples();
         drawParticles();
         drawJudgeEffects();
         engine.dancer.draw(ctx, CW / 2, CH / 2 + 30);
