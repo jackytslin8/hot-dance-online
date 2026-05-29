@@ -58,7 +58,7 @@ function showBPM(bpm) {
         el.style.cssText = 'position:absolute;top:40px;right:16px;font-size:20px;color:#f0f;text-shadow:0 0 8px #f0f;transition:opacity 0.5s;pointer-events:none;z-index:10;';
         document.getElementById('game-container').appendChild(el);
     }
-    el.textContent = bpm ? `🎵 ${bpm} BPM` : '🎵 Tap...';
+    el.textContent = bpm ? `🎵 ${bpm.toFixed(1)} BPM` : '🎵 Tap...';
     el.style.opacity = 1;
     clearTimeout(el._timeout);
     el._timeout = setTimeout(() => el.style.opacity = 0, 3000);
@@ -398,12 +398,17 @@ class GameEngine {
 // ====== 節拍脈動 ======
 let beatPhase = 0;
 let beatPulse = 0;
+let beatFlash = 0;   // 來自音訊偵測的重拍閃爍
 function updateBeat(dt, bpm) {
     if (bpm <= 0) return;
     const beatDur = 60 / bpm;
     beatPhase = (beatPhase + dt) % beatDur;
-    // 脈動在拍子點瞬間最強，然後快速衰減
     beatPulse = Math.max(0, 1 - (beatPhase / beatDur) * 4);
+    // 從音訊偵測重拍
+    if (window.audioEngine.detectBeat()) {
+        beatFlash = 1;
+    }
+    beatFlash = Math.max(0, beatFlash - dt * 4);
 }
 
 // ====== 命中漣漪 ======
@@ -462,8 +467,14 @@ function drawBackground() {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, CW, CH);
 
+    // 重拍全屏閃爍
+    if (beatFlash > 0.05) {
+        ctx.fillStyle = `rgba(255,255,255,${beatFlash * 0.06})`;
+        ctx.fillRect(0, 0, CW, CH);
+    }
+
     // 裝飾線條
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.strokeStyle = `rgba(255,255,255,${0.02 + beatFlash * 0.03})`;
     ctx.lineWidth = 1;
     for (let i = 0; i < CW; i += 50) {
         ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, CH); ctx.stroke();
@@ -490,16 +501,17 @@ function drawJudgeLine() {
     });
 
     // 判定區域背景
-    ctx.fillStyle = `rgba(255,255,255,${0.03 + beatPulse * 0.04})`;
+    const combinedPulse = Math.max(beatPulse, beatFlash * 0.8);
+    ctx.fillStyle = `rgba(255,255,255,${0.03 + combinedPulse * 0.06})`;
     ctx.fillRect(0, JUDGE_Y - 25, CW, 50);
 
-    // 判定線 - 跟著 BPM 脈動
+    // 判定線 - 跟著 BPM 脈動 + 音訊重拍
     const color = engine.feverActive ? '#ff0' : currentScene.accent;
-    const lineWidth = 3 + beatPulse * 2;
+    const lineWidth = 3 + combinedPulse * 3;
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
     ctx.shadowColor = color;
-    ctx.shadowBlur = 15 + beatPulse * 15;
+    ctx.shadowBlur = 15 + combinedPulse * 20;
     ctx.beginPath();
     ctx.moveTo(30, JUDGE_Y);
     ctx.lineTo(CW - 30, JUDGE_Y);
@@ -508,11 +520,11 @@ function drawJudgeLine() {
 
     // 列標記 - 跟著脈動
     COLS.forEach((_, i) => {
-        const r = 22 + beatPulse * 4;
+        const r = 22 + combinedPulse * 6;
         ctx.strokeStyle = COL_COLORS[i];
         ctx.lineWidth = 2;
         ctx.shadowColor = COL_COLORS[i];
-        ctx.shadowBlur = 5 + beatPulse * 8;
+        ctx.shadowBlur = 5 + combinedPulse * 12;
         ctx.beginPath();
         ctx.arc(COL_X[i], JUDGE_Y, r, 0, Math.PI * 2);
         ctx.stroke();
@@ -750,8 +762,8 @@ window.addEventListener('keydown', e => {
 
     if (e.code === 'Equal' || e.code === 'NumpadAdd') { CONFIG.OFFSET += 0.05; showOffset(); return; }
     if (e.code === 'Minus' || e.code === 'NumpadSubtract') { CONFIG.OFFSET -= 0.05; showOffset(); return; }
-    if (e.code === 'BracketLeft') { CONFIG.BPM_OFFSET -= 1; applyBPMTweak(); return; }
-    if (e.code === 'BracketRight') { CONFIG.BPM_OFFSET += 1; applyBPMTweak(); return; }
+    if (e.code === 'BracketLeft') { CONFIG.BPM_OFFSET -= 0.5; applyBPMTweak(); return; }
+    if (e.code === 'BracketRight') { CONFIG.BPM_OFFSET += 0.5; applyBPMTweak(); return; }
     if (e.code === 'KeyT') { handleTapTempo(); return; }
     if (e.code === 'KeyR') { tapTimes = []; showBPM(null); return; }
 

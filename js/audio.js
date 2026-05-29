@@ -33,6 +33,12 @@ class AudioEngine {
         this.bgmAudio = null;
         this.currentSong = null;
         this._loopTimeout = null;
+        // Beat detection
+        this.analyser = null;
+        this.freqData = null;
+        this.beatDetected = false;
+        this._prevEnergy = 0;
+        this._beatCallbacks = [];
     }
     init() {
         if (this.initialized) return;
@@ -67,7 +73,38 @@ class AudioEngine {
         this.bgmAudio = new Audio();
         this.bgmAudio.src = url;
         this.bgmAudio.loop = true;
+        this.bgmAudio.crossOrigin = 'anonymous';
+
+        // 連接 Analyser 做 beat detection
+        this._connectAnalyser();
+
         this.bgmAudio.play().then(() => console.log('MP3 playing')).catch(e => console.warn('MP3 play failed:', e));
+    }
+    _connectAnalyser() {
+        try {
+            const source = this.ctx.createMediaElementSource(this.bgmAudio);
+            this.analyser = this.ctx.createAnalyser();
+            this.analyser.fftSize = 256;
+            source.connect(this.analyser);
+            this.analyser.connect(this.ctx.destination);
+            this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+        } catch(e) {
+            console.warn('Analyser connect failed:', e);
+            this.analyser = null;
+        }
+    }
+    // 偵測重拍（低頻能量突增）
+    detectBeat() {
+        if (!this.analyser || !this.freqData) return false;
+        this.analyser.getByteFrequencyData(this.freqData);
+        // 只看低頻 (前 10 個 bin ≈ 0-800Hz)
+        let energy = 0;
+        for (let i = 0; i < 10; i++) energy += this.freqData[i];
+        energy /= 10;
+        const threshold = this._prevEnergy * 1.4 + 10;
+        const isBeat = energy > threshold && energy > 40;
+        this._prevEnergy = this._prevEnergy * 0.8 + energy * 0.2;
+        return isBeat;
     }
     _playSynth(song) {
         const beatDur = 60 / song.bpm;
