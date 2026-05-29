@@ -84,37 +84,37 @@ function initSongSelect() {
 }
 
 function selectSong(songId) {
-    document.getElementById('song-select').style.display = 'none';
-    const overlay = document.getElementById('start-overlay');
-    overlay.style.display = 'flex';
-    document.getElementById('overlay-title').textContent = SONGS[songId].title;
-    
-    overlay.onclick = null;
-    overlay.addEventListener('click', function handler() {
-        overlay.removeEventListener('click', handler);
-        startGame(songId);
-    });
+    startGame(songId);
 }
 
 // 處理 MP3 上傳
-document.getElementById('mp3-upload').addEventListener('change', (e) => {
-    const file = e.target.files[0];
+function handleUpload(file) {
     if (!file) return;
     const url = URL.createObjectURL(file);
     console.log('MP3 uploaded:', file.name, url);
-    
-    document.getElementById('song-select').style.display = 'none';
-    const overlay = document.getElementById('start-overlay');
-    overlay.style.display = 'flex';
-    document.getElementById('overlay-title').textContent = '🎤 ' + file.name.replace(/\.mp3$/i, '');
-    
-    // 移除舊的 onclick，綁定新的
-    overlay.onclick = null;
-    overlay.addEventListener('click', function handler() {
-        overlay.removeEventListener('click', handler);
-        startGame(9, url);
-    });
+
+    // 直接開始遊戲，不經過 overlay
+    startGame(9, url);
+}
+
+document.getElementById('mp3-upload').addEventListener('change', (e) => {
+    handleUpload(e.target.files[0]);
 });
+
+// Drag & Drop
+const dropZone = document.getElementById('drop-zone');
+if (dropZone) {
+    ['dragenter', 'dragover'].forEach(evt => {
+        dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.style.borderColor = '#0ff'; dropZone.style.color = '#0ff'; });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+        dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.style.borderColor = '#555'; dropZone.style.color = '#666'; });
+    });
+    dropZone.addEventListener('drop', (e) => {
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('audio/')) handleUpload(file);
+    });
+}
 
 // ========== 遊戲引擎 ==========
 class GameEngine {
@@ -300,7 +300,12 @@ let gameStarted = false;
 function startGame(songId, uploadUrl) {
     if (gameStarted) return;
     gameStarted = true;
-    document.getElementById('start-overlay').style.display = 'none';
+
+    // 隱藏所有 overlay
+    const overlay = document.getElementById('start-overlay');
+    if (overlay) overlay.style.display = 'none';
+    const songSelect = document.getElementById('song-select');
+    if (songSelect) songSelect.style.display = 'none';
 
     const song = SONGS[songId] || SONGS[0];
     document.getElementById('song-title').textContent = song ? song.title : 'Custom';
@@ -313,6 +318,7 @@ function startGame(songId, uploadUrl) {
     engine.currentSong = song;
     engine.initChart(bpm, leadIn);
     engine.chartIndex = 0;
+    console.log('Game started! Song:', songId, 'BPM:', bpm, 'UploadUrl:', uploadUrl || 'none');
 }
 
 window.addEventListener('keydown', (e) => {
