@@ -208,10 +208,28 @@
                 <button class="upload-btn" onclick="document.getElementById('mp3-upload').click()">📁 上傳 MP3</button>
                 <div id="drop-zone">拖放 MP3 到這裡</div>
             </div>
+            <div style="margin-top:12px; text-align:center;">
+                <button class="upload-btn" style="border-color:#ff0; color:#ff0; background:rgba(255,255,0,0.08);" onclick="startRecordMode()">🎵 錄製譜面</button>
+                <div style="color:#666; font-size:11px; margin-top:4px;">選歌後跟著音樂按方向鍵，按空白鍵結束</div>
+            </div>
         </div>
     </div>
 
     <script src="js/audio.js"></script>
     <script src="js/main.js"></script>
+
+    <!-- 錄製譜面結果彈窗 -->
+    <div id="record-result" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.95); z-index:999; padding:30px; overflow-y:auto;">
+        <div style="max-width:600px; margin:0 auto;">
+            <h2 style="color:#ff0; text-align:center; margin-bottom:10px;">🎵 錄製完成！</h2>
+            <div id="record-stats" style="text-align:center; color:#0ff; margin-bottom:15px;"></div>
+            <div style="color:#888; font-size:13px; margin-bottom:8px;">複製以下 JSON，貼到 audio.js 的 SONGS 裡的 chart 欄位：</div>
+            <textarea id="record-json" style="width:100%; height:300px; background:#1a1a2e; color:#0ff; border:1px solid #333; padding:10px; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+            <div style="text-align:center; margin-top:15px;">
+                <button onclick="copyRecordJSON()" style="padding:8px 24px; background:#0ff; color:#000; border:none; border-radius:4px; cursor:pointer; font-size:14px; margin-right:10px;">📋 複製 JSON</button>
+                <button onclick="closeRecordResult()" style="padding:8px 24px; background:#555; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:14px;">關閉</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

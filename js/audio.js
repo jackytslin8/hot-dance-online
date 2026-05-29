@@ -22,6 +22,8 @@ const SONGS = [
     { id: 7, title: '🎧 Upbeat Energy', bpm: 120, type: 'mp3', url: 'https://cdn.pixabay.com/audio/2023/09/04/audio_6fb25c5e4e.mp3' },
     { id: 8, title: '🌟 Synthwave Dream', bpm: 100, type: 'mp3', url: 'https://cdn.pixabay.com/audio/2022/10/25/audio_57017e3e0e.mp3' },
     { id: 9, title: '🎤 Custom Upload', bpm: 120, type: 'upload' },
+    // 錄製的譜面可以放在這裡：
+    // { id: 10, title: '🎵 My Chart', bpm: 128, type: 'mp3', url: '...', chart: [{time:1.0,col:1},{time:1.5,col:3},...] },
 ];
 
 class AudioEngine {

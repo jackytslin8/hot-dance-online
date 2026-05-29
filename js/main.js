@@ -30,6 +30,11 @@ const JUDGE = {
 
 let gameMode = 'normal'; // 'normal' | 'reverse'
 
+// ====== 錄製模式 ======
+let recordingMode = false;
+let recordedNotes = [];
+let recordStartTime = 0;
+
 // ====== 校準模式 ======
 let tapTimes = [];
 let calibrating = false;
@@ -153,6 +158,10 @@ function finishCalibration() {
         const offsetBeats = Math.round(firstBeat / beatDur);
         const timeOffset = firstBeat - offsetBeats * beatDur;
 
+        // 使用預製譜面（如果有）
+        if (engine.currentSong && engine.currentSong.chart && engine.currentSong.chart.length > 0) {
+            engine.initChart(bpm, 0, engine.currentSong.chart);
+        } else {
         engine.chart = [];
         for (let beat = 0; beat < 500; beat++) {
             const time = timeOffset + beat * beatDur;
@@ -169,6 +178,7 @@ function finishCalibration() {
             }
         }
         engine.totalNotes = engine.chart.length;
+        } // end of else (no pre-chart)
 
         const now = window.audioEngine.getBGMTime();
         engine.chartIndex = 0;
@@ -245,7 +255,18 @@ class GameEngine {
         this.totalNotes = 0;
         this.hitNotes = 0;
     }
-    initChart(bpm, leadIn) {
+    initChart(bpm, leadIn, preChart) {
+        // 如果有預製譜面，直接使用
+        if (preChart && preChart.length > 0) {
+            this.chart = preChart.map(n => ({
+                time: n.time,
+                col: n.col,
+                reverse: n.reverse || false
+            }));
+            this.totalNotes = this.chart.length;
+            return;
+        }
+        // 否則隨機產生
         this.chart = [];
         const beatDur = 60 / bpm;
         const startBeat = Math.ceil(leadIn / beatDur);
@@ -781,8 +802,185 @@ function startGame(songId, uploadUrl) {
     startCalibration(songId, uploadUrl);
 }
 
+// ====== 錄製譜面模式 ======
+let recordSongId = 0;
+let recordUploadUrl = null;
+
+function startRecordMode() {
+    // 顯示選歌清單讓使用者選（複用現有清單）
+    const list = document.querySelectorAll('.song-item');
+    if (list.length === 0) return;
+
+    // 直接用第一首歌開始，或讓使用者先選歌再按錄製
+    // 簡化：彈出選歌提示
+    let html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;">';
+    html += '<h2 style="color:#ff0;margin-bottom:20px;">🎵 選擇要錄製的歌曲</h2>';
+    html += '<div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:480px;">';
+    SONGS.forEach(song => {
+        html += `<div style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid #333;border-radius:6px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.borderColor='#ff0'" onmouseout="this.style.borderColor='#333'" onclick="selectRecordSong(${song.id})">${song.title} <span style="color:#0ff;">${song.bpm} BPM</span></div>`;
+    });
+    html += '</div>';
+    html += '<div style="margin-top:15px;"><input type="file" id="record-upload" accept="audio/*" style="display:none"><button onclick="document.getElementById(\'record-upload\').click()" style="padding:8px 20px;background:#0ff;color:#000;border:none;border-radius:4px;cursor:pointer;">📁 上傳自訂 MP3</button></div>';
+    html += '<button onclick="closeRecordSelect()" style="margin-top:15px;padding:8px 20px;background:#555;color:#fff;border:none;border-radius:4px;cursor:pointer;">取消</button>';
+    html += '</div>';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'record-select-overlay';
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+
+    // 上傳 MP3 的 handler
+    document.getElementById('record-upload').addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (file) {
+            const url = URL.createObjectURL(file);
+            closeRecordSelect();
+            beginRecording(9, url);
+        }
+    });
+}
+
+function closeRecordSelect() {
+    const el = document.getElementById('record-select-overlay');
+    if (el) el.remove();
+}
+
+function selectRecordSong(songId) {
+    closeRecordSelect();
+    beginRecording(songId, null);
+}
+
+function beginRecording(songId, uploadUrl) {
+    const song = SONGS[songId] || SONGS[0];
+    document.getElementById('song-select').style.display = 'none';
+    document.getElementById('song-title').textContent = '🔴 REC: ' + song.title;
+    currentScene = SCENES[Math.floor(Math.random() * SCENES.length)];
+
+    window.audioEngine.init();
+    window.audioEngine.playBGM(songId, uploadUrl);
+
+    engine.currentSong = song;
+    recordingMode = true;
+    recordedNotes = [];
+    recordSongId = songId;
+    recordUploadUrl = uploadUrl;
+    recordStartTime = performance.now();
+
+    // 顯示錄製 HUD
+    showRecordHUD();
+
+    gameStarted = true;
+    // 不進入校準，直接播放
+    // 但需要 initChart 佔位（錄製模式下不用自動產生的 chart）
+    engine.chart = [];
+    engine.totalNotes = 0;
+    engine.chartIndex = 0;
+}
+
+function showRecordHUD() {
+    let el = document.getElementById('record-hud');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'record-hud';
+        el.style.cssText = 'position:absolute;top:40px;left:50%;transform:translateX(-50%);text-align:center;z-index:200;pointer-events:none;';
+        document.getElementById('game-container').appendChild(el);
+    }
+    el.style.display = 'block';
+    updateRecordHUD();
+}
+
+function updateRecordHUD() {
+    const el = document.getElementById('record-hud');
+    if (!el || !recordingMode) { if (el) el.style.display = 'none'; return; }
+    const now = window.audioEngine.getBGMTime();
+    const min = Math.floor(now / 60);
+    const sec = Math.floor(now % 60);
+    el.innerHTML = `
+        <div style="font-size:20px;color:#f00;text-shadow:0 0 10px #f00;">🔴 錄製中</div>
+        <div style="font-size:16px;color:#ff0;margin-top:5px;">已記錄 ${recordedNotes.length} 個箭頭</div>
+        <div style="font-size:14px;color:#0ff;margin-top:3px;">⏱ ${min}:${sec.toString().padStart(2,'0')}</div>
+        <div style="font-size:12px;color:#888;margin-top:8px;">按方向鍵錄製 · 按 <span style="color:#0ff;">空白鍵</span> 結束</div>
+    `;
+}
+
+function finishRecording() {
+    if (!recordingMode) return;
+    recordingMode = false;
+    gameStarted = false;
+    window.audioEngine.stopBGM();
+
+    const el = document.getElementById('record-hud');
+    if (el) el.style.display = 'none';
+
+    // 整理譜面：按時間排序
+    recordedNotes.sort((a, b) => a.time - b.time);
+
+    // 移除太密集的重複（間隔 < 50ms 的同列）
+    const filtered = [];
+    for (const n of recordedNotes) {
+        const last = filtered[filtered.length - 1];
+        if (last && last.col === n.col && Math.abs(n.time - last.time) < 0.05) continue;
+        filtered.push(n);
+    }
+
+    // 輸出 JSON
+    const json = JSON.stringify(filtered.map(n => ({
+        time: Math.round(n.time * 1000) / 1000,
+        col: n.col,
+        reverse: false
+    })), null, 2);
+
+    showRecordResult(filtered, json);
+}
+
+function showRecordResult(notes, json) {
+    const song = engine.currentSong;
+    const duration = notes.length > 0 ? notes[notes.length - 1].time : 0;
+    const bpm = song ? song.bpm : 0;
+
+    document.getElementById('record-stats').innerHTML = `
+        📊 共 <strong>${notes.length}</strong> 個箭頭 · 時長 ${duration.toFixed(1)} 秒${bpm ? ' · ' + bpm + ' BPM' : ''}
+    `;
+    document.getElementById('record-json').value = json;
+    document.getElementById('record-result').style.display = 'block';
+}
+
+function copyRecordJSON() {
+    const textarea = document.getElementById('record-json');
+    textarea.select();
+    navigator.clipboard.writeText(textarea.value).then(() => {
+        const btn = event.target;
+        btn.textContent = '✅ 已複製！';
+        setTimeout(() => btn.textContent = '📋 複製 JSON', 1500);
+    });
+}
+
+function closeRecordResult() {
+    document.getElementById('record-result').style.display = 'none';
+    // 回到選歌畫面
+    document.getElementById('song-select').style.display = 'flex';
+}
+
 // ====== 鍵盤 ======
 window.addEventListener('keydown', e => {
+    // 錄製模式：空白鍵結束錄製，方向鍵錄製，其他忽略
+    if (recordingMode) {
+        if (e.code === 'Space') { e.preventDefault(); finishRecording(); return; }
+        if (COLS.includes(e.code)) {
+            e.preventDefault();
+            const colIdx = COLS.indexOf(e.code);
+            const time = window.audioEngine.getBGMTime();
+            if (time > 0) {
+                recordedNotes.push({ time: Math.round(time * 1000) / 1000, col: colIdx });
+                flashCol(colIdx);
+                spawnHitRipple(colIdx, COL_COLORS[colIdx]);
+                window.audioEngine.playTap();
+                updateRecordHUD();
+            }
+        }
+        return;
+    }
+
     // 校準模式：T 打拍子，空白鍵開始遊戲
     if (calibrating) {
         if (e.code === 'KeyT') { handleTapTempo(); return; }
@@ -835,6 +1033,9 @@ function gameLoop(now) {
         const bpm = engine.currentSong ? engine.currentSong.bpm : 120;
         updateBeat(dt, bpm);
         updateStars(dt);
+    }
+    if (recordingMode) {
+        updateRecordHUD();
     }
 
     drawBackground();
