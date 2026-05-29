@@ -11,7 +11,50 @@ const CONFIG = {
     C_X: 150,
     INPUT_BUFFER_TIME: 0.5,
     OFFSET: 0, // 音訊偏移量（秒），正數=箭頭延後出現
+    BPM_OFFSET: 0, // BPM 偏移量（可微調）
 };
+
+// Tap Tempo
+let tapTimes = [];
+function handleTapTempo() {
+    const now = Date.now();
+    tapTimes.push(now);
+    // 只保留最近 8 次
+    if (tapTimes.length > 8) tapTimes.shift();
+    if (tapTimes.length >= 2) {
+        const intervals = [];
+        for (let i = 1; i < tapTimes.length; i++) {
+            intervals.push(tapTimes[i] - tapTimes[i - 1]);
+        }
+        const avgMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+        const detectedBPM = Math.round(60000 / avgMs);
+        // 更新 BPM
+        const song = engine.currentSong || SONGS[0];
+        song.bpm = detectedBPM;
+        CONFIG.BPM_OFFSET = 0;
+        // 重新生成譜面
+        engine.initChart(detectedBPM, window.audioEngine.getLeadIn());
+        engine.chartIndex = 0;
+        // 顯示 BPM
+        showBPM(detectedBPM);
+    } else {
+        showBPM(null); // 顯示 "Tap..."
+    }
+}
+
+function showBPM(bpm) {
+    let el = document.getElementById('bpm-display');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'bpm-display';
+        el.style.cssText = 'position:absolute;top:80px;right:20px;font-size:24px;color:#f0f;text-shadow:0 0 10px #f0f;transition:opacity 0.5s;pointer-events:none;';
+        document.getElementById('game-container').appendChild(el);
+    }
+    el.textContent = bpm ? `🎵 ${bpm} BPM` : '🎵 Tap...';
+    el.style.opacity = 1;
+    clearTimeout(el._timeout);
+    el._timeout = setTimeout(() => el.style.opacity = 0, 3000);
+}
 
 const JUDGE = {
     PERFECT: { name: 'PERFECT', score: 200, color: '#ff0', combo: true },
@@ -267,6 +310,7 @@ function startGame(songId, uploadUrl) {
 
     const bpm = song ? song.bpm : 120;
     const leadIn = window.audioEngine.getLeadIn();
+    engine.currentSong = song;
     engine.initChart(bpm, leadIn);
     engine.chartIndex = 0;
 }
@@ -282,11 +326,38 @@ window.addEventListener('keydown', (e) => {
         CONFIG.OFFSET -= 0.05;
         showOffset(); return;
     }
+    // [ / ] 調整 BPM 微調
+    if (e.code === 'BracketLeft') {
+        CONFIG.BPM_OFFSET -= 1;
+        applyBPMTweak(); return;
+    }
+    if (e.code === 'BracketRight') {
+        CONFIG.BPM_OFFSET += 1;
+        applyBPMTweak(); return;
+    }
+    // T = Tap Tempo
+    if (e.code === 'KeyT') {
+        handleTapTempo(); return;
+    }
+    // R = 重置 tap
+    if (e.code === 'KeyR') {
+        tapTimes = [];
+        showBPM(null); return;
+    }
     if (DIR_KEYS_4.includes(e.code)) {
         e.preventDefault();
         engine.handleDirection(e.code);
     }
 });
+
+function applyBPMTweak() {
+    const song = engine.currentSong;
+    if (!song) return;
+    const newBPM = song.bpm + CONFIG.BPM_OFFSET;
+    engine.initChart(newBPM, window.audioEngine.getLeadIn());
+    engine.chartIndex = 0;
+    showBPM(newBPM);
+}
 
 function showOffset() {
     let el = document.getElementById('offset-display');
