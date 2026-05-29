@@ -48,15 +48,14 @@ class AudioEngine {
     }
     init() {
         if (this.initialized) {
-            // 如果 context 被 suspend，嘗試 resume
             if (this.ctx && this.ctx.state === 'suspended') {
-                this.ctx.resume().catch(() => {});
+                this.ctx.resume().then(() => this._debug('AudioContext resumed')).catch(e => this._debug('resume failed: ' + e.message));
             }
             return;
         }
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.initialized = true;
-        console.log('AudioContext created, state:', this.ctx.state);
+        this._debug('AudioContext created, state: ' + this.ctx.state);
     }
     getBGMTime() {
         if (!this.ctx) return 0;
@@ -68,9 +67,10 @@ class AudioEngine {
     }
     playBGM(songId, uploadUrl) {
         this.stopBGM();
-        this.init();  // init 在 stopBGM 之後，確保 context 是活的
+        this.init();
         const song = SONGS[songId] || SONGS[0];
         this.currentSong = song;
+        this._debug('playBGM: id=' + songId + ' type=' + song.type + ' url=' + (uploadUrl || song.url || 'synth'));
         if (song.type === 'mp3' || (song.type === 'upload' && uploadUrl)) {
             this._playMP3(uploadUrl || song.url);
         } else {
@@ -88,6 +88,8 @@ class AudioEngine {
         this.bgmAudio.loop = true;
         this.bgmAudio.preload = 'auto';
 
+        this._debug('🎵 _playMP3: ' + url);
+
         // ⚡ 關鍵：先 play()（在使用者手勢的同步 call stack 中），
         // 再處理 AudioContext resume + analyser 連接
         const playPromise = this.bgmAudio.play();
@@ -102,15 +104,19 @@ class AudioEngine {
         if (playPromise) {
             playPromise.then(() => {
                 console.log('MP3 playing OK:', url);
+                this._debug('✅ MP3 播放成功');
             }).catch(e => {
                 console.warn('MP3 play blocked:', e.message);
-                // 顯示提示，等用戶下次互動時重試
+                this._debug('❌ MP3 被擋: ' + e.message);
                 const el = document.getElementById('song-title');
                 if (el) el.textContent = '⚠️ 點擊螢幕播放音樂';
                 const retry = () => {
                     this.bgmAudio.play().then(() => {
+                        this._debug('✅ 重試播放成功');
                         if (el) el.textContent = this.currentSong ? this.currentSong.title : '';
-                    }).catch(() => {});
+                    }).catch(e2 => {
+                        this._debug('❌ 重試失敗: ' + e2.message);
+                    });
                     document.removeEventListener('click', retry);
                     document.removeEventListener('touchstart', retry);
                     document.removeEventListener('keydown', retry);
@@ -119,6 +125,17 @@ class AudioEngine {
                 document.addEventListener('touchstart', retry);
                 document.addEventListener('keydown', retry);
             });
+        } else {
+            this._debug('⚠️ play() 沒有回傳 promise');
+        }
+    }
+    _debug(msg) {
+        console.log('[Audio]', msg);
+        const el = document.getElementById('audio-debug');
+        if (el) {
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML += `<div>[${time}] ${msg}</div>`;
+            el.scrollTop = el.scrollHeight;
         }
     }
     _connectAnalyser() {

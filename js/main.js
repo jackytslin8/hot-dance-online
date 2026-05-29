@@ -84,6 +84,7 @@ function startCalibration(songId, uploadUrl) {
     document.getElementById('song-title').textContent = song.title;
     currentScene = SCENES[Math.floor(Math.random() * SCENES.length)];
 
+    console.log('[Game] startCalibration: id=' + songId + ' title=' + song.title);
     window.audioEngine.init();
     window.audioEngine.playBGM(songId, uploadUrl);
 
@@ -826,14 +827,13 @@ if (dropZone) {
 function startGame(songId, uploadUrl) {
     if (gameStarted) return;
 
+    const song = SONGS[songId];
+    console.log('[Game] startGame: id=' + songId + ' title=' + (song ? song.title : 'unknown') + ' type=' + (song ? song.type : '?'));
     document.getElementById('song-select').style.display = 'none';
 
-    const song = SONGS[songId] || SONGS[0];
-    if (song.chart && song.chart.length > 0) {
-        // 已有譜面 → 直接開始，跳過校準
+    if (song && song.chart && song.chart.length > 0) {
         startDirect(songId, uploadUrl);
     } else {
-        // 沒譜面 → 進入校準模式
         startCalibration(songId, uploadUrl);
     }
 }
