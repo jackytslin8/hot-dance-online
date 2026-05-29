@@ -90,119 +90,6 @@ function showOffset() {
 }
 
 // ====== 跳舞角色 ======
-class Dancer {
-    constructor() {
-        this.pose = 0;         // 0=站姿, 1=左, 2=右, 3=上, 4=下, 5=perfect
-        this.poseTimer = 0;
-        this.bouncePhase = 0;
-    }
-    hit(dir) {
-        if (dir === 'ArrowLeft') this.pose = 1;
-        else if (dir === 'ArrowRight') this.pose = 2;
-        else if (dir === 'ArrowUp') this.pose = 3;
-        else if (dir === 'ArrowDown') this.pose = 4;
-        this.poseTimer = 0.3;
-    }
-    perfect() { this.pose = 5; this.poseTimer = 0.4; }
-    update(dt) {
-        this.bouncePhase += dt * 3;
-        if (this.poseTimer > 0) { this.poseTimer -= dt; }
-        else { this.pose = 0; }
-    }
-    draw(ctx, x, y) {
-        ctx.save();
-        const bounce = Math.sin(this.bouncePhase) * 3;
-        const py = y + bounce;
-
-        // 身體
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-
-        // 頭
-        ctx.beginPath();
-        ctx.arc(x, py - 55, 12, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffe0c0';
-        ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.stroke();
-
-        // 眼睛 + 嘴巴
-        ctx.fillStyle = '#333';
-        ctx.beginPath(); ctx.arc(x-4, py-57, 1.5, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(x+4, py-57, 1.5, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath();
-        if (this.pose === 5) { // perfect 笑臉
-            ctx.arc(x, py-52, 4, 0, Math.PI);
-        } else {
-            ctx.moveTo(x-3, py-52); ctx.lineTo(x+3, py-52);
-        }
-        ctx.stroke();
-
-        // 軀幹
-        ctx.beginPath();
-        ctx.moveTo(x, py - 42);
-        ctx.lineTo(x, py - 10);
-        ctx.stroke();
-
-        // 手臂
-        const armY = py - 35;
-        ctx.beginPath();
-        if (this.pose === 1) { // 左
-            ctx.moveTo(x, armY); ctx.lineTo(x - 25, armY - 10);
-            ctx.moveTo(x, armY); ctx.lineTo(x + 15, armY + 5);
-        } else if (this.pose === 2) { // 右
-            ctx.moveTo(x, armY); ctx.lineTo(x + 25, armY - 10);
-            ctx.moveTo(x, armY); ctx.lineTo(x - 15, armY + 5);
-        } else if (this.pose === 3) { // 上
-            ctx.moveTo(x, armY); ctx.lineTo(x - 18, armY - 20);
-            ctx.moveTo(x, armY); ctx.lineTo(x + 18, armY - 20);
-        } else if (this.pose === 4) { // 下
-            ctx.moveTo(x, armY); ctx.lineTo(x - 20, armY + 10);
-            ctx.moveTo(x, armY); ctx.lineTo(x + 20, armY + 10);
-        } else if (this.pose === 5) { // perfect
-            ctx.moveTo(x, armY); ctx.lineTo(x - 22, armY - 18);
-            ctx.moveTo(x, armY); ctx.lineTo(x + 22, armY - 18);
-        } else { // 站姿
-            ctx.moveTo(x, armY); ctx.lineTo(x - 18, armY + 8);
-            ctx.moveTo(x, armY); ctx.lineTo(x + 18, armY + 8);
-        }
-        ctx.stroke();
-
-        // 腿
-        const legY = py - 10;
-        ctx.beginPath();
-        if (this.pose === 1) {
-            ctx.moveTo(x, legY); ctx.lineTo(x - 12, legY + 28);
-            ctx.moveTo(x, legY); ctx.lineTo(x + 8, legY + 25);
-        } else if (this.pose === 2) {
-            ctx.moveTo(x, legY); ctx.lineTo(x + 12, legY + 28);
-            ctx.moveTo(x, legY); ctx.lineTo(x - 8, legY + 25);
-        } else if (this.pose === 4) {
-            ctx.moveTo(x, legY); ctx.lineTo(x - 15, legY + 20);
-            ctx.moveTo(x, legY); ctx.lineTo(x + 15, legY + 20);
-        } else {
-            ctx.moveTo(x, legY); ctx.lineTo(x - 10, legY + 28);
-            ctx.moveTo(x, legY); ctx.lineTo(x + 10, legY + 28);
-        }
-        ctx.stroke();
-
-        // perfect 特效
-        if (this.pose === 5) {
-            ctx.shadowColor = '#ff0';
-            ctx.shadowBlur = 20;
-            ctx.strokeStyle = 'rgba(255,255,0,0.6)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(x, py - 25, 35, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-        }
-
-        ctx.restore();
-    }
-}
-
 // ====== 遊戲引擎 ======
 class GameEngine {
     constructor() {
@@ -217,7 +104,6 @@ class GameEngine {
         this.judgeEffects = [];
         this.particles = [];
         this.currentSong = null;
-        this.dancer = new Dancer();
         this.calories = 0;
         this.totalNotes = 0;
         this.hitNotes = 0;
@@ -272,8 +158,6 @@ class GameEngine {
             else if (bestDiff <= CONFIG.BAD_WINDOW) judge = JUDGE.BAD;
             this.applyJudge(judge, best);
             window.audioEngine.playTap();
-            this.dancer.hit(COLS[best.col]);
-            if (judge === JUDGE.PERFECT) this.dancer.perfect();
             this.calories += 0.5;
         } else {
             window.audioEngine.playBad();
@@ -390,8 +274,6 @@ class GameEngine {
             p.life -= dt * 2;
             return p.life > 0;
         });
-
-        this.dancer.update(dt);
     }
 }
 
@@ -813,7 +695,6 @@ function gameLoop(now) {
         drawHitRipples();
         drawParticles();
         drawJudgeEffects();
-        engine.dancer.draw(ctx, CW / 2, CH / 2 + 30);
         drawFeverBar();
         drawCalories();
         drawKeyHints();
