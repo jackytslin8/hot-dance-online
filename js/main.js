@@ -35,6 +35,7 @@ function handleTapTempo() {
         // 重新生成譜面
         engine.initChart(detectedBPM, window.audioEngine.getLeadIn());
         engine.chartIndex = 0;
+        updateArrowSpeed(detectedBPM);
         // 顯示 BPM
         showBPM(detectedBPM);
     } else {
@@ -318,7 +319,10 @@ function startGame(songId, uploadUrl) {
     engine.currentSong = song;
     engine.initChart(bpm, leadIn);
     engine.chartIndex = 0;
-    console.log('Game started! Song:', songId, 'BPM:', bpm, 'UploadUrl:', uploadUrl || 'none');
+
+    // 箭頭速度隨 BPM 動態調整
+    updateArrowSpeed(bpm);
+    console.log('Game started! Song:', songId, 'BPM:', bpm, 'ArrowSpeed:', CONFIG.ARROW_SPEED);
 }
 
 window.addEventListener('keydown', (e) => {
@@ -356,12 +360,18 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
+function updateArrowSpeed(bpm) {
+    // 120 BPM 為基準 (200 px/s)，BPM 越高速度越快
+    CONFIG.ARROW_SPEED = Math.round(200 * (bpm / 120));
+}
+
 function applyBPMTweak() {
     const song = engine.currentSong;
     if (!song) return;
     const newBPM = song.bpm + CONFIG.BPM_OFFSET;
     engine.initChart(newBPM, window.audioEngine.getLeadIn());
     engine.chartIndex = 0;
+    updateArrowSpeed(newBPM);
     showBPM(newBPM);
 }
 
