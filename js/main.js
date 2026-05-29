@@ -806,7 +806,7 @@ function initSongSelect() {
 function handleUpload(file) {
     if (!file) return;
     const url = URL.createObjectURL(file);
-    startGame(9, url);
+    startGame(4, url);
 }
 document.getElementById('mp3-upload').addEventListener('change', e => handleUpload(e.target.files[0]));
 const dropZone = document.getElementById('drop-zone');
@@ -902,7 +902,7 @@ function startRecordMode() {
         if (file) {
             const url = URL.createObjectURL(file);
             closeRecordSelect();
-            beginRecording(9, url);
+            beginRecording(4, url);
         }
     });
 }
