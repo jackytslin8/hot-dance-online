@@ -47,9 +47,16 @@ class AudioEngine {
         this.detectedBPM = 0;
     }
     init() {
-        if (this.initialized) return;
+        if (this.initialized) {
+            // 如果 context 被 suspend，嘗試 resume
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume().catch(() => {});
+            }
+            return;
+        }
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.initialized = true;
+        console.log('AudioContext created, state:', this.ctx.state);
     }
     getBGMTime() {
         if (!this.ctx) return 0;
@@ -60,8 +67,8 @@ class AudioEngine {
         return 0;
     }
     playBGM(songId, uploadUrl) {
-        this.init();
         this.stopBGM();
+        this.init();  // init 在 stopBGM 之後，確保 context 是活的
         const song = SONGS[songId] || SONGS[0];
         this.currentSong = song;
         if (song.type === 'mp3' || (song.type === 'upload' && uploadUrl)) {
@@ -109,22 +116,21 @@ class AudioEngine {
         }
     }
     _connectAnalyser() {
+        // 建立 source 節點（每個 Audio 元素只能呼叫一次）
+        const source = this.ctx.createMediaElementSource(this.bgmAudio);
         try {
-            const source = this.ctx.createMediaElementSource(this.bgmAudio);
+            // 嘗試 source → analyser → destination（有 beat detection）
             this.analyser = this.ctx.createAnalyser();
             this.analyser.fftSize = 256;
             source.connect(this.analyser);
             this.analyser.connect(this.ctx.destination);
             this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+            console.log('Analyser connected OK');
         } catch(e) {
-            console.warn('Analyser connect failed:', e);
+            // analyser 失敗 → source 直接連 destination（無 beat detection）
+            console.warn('Analyser failed, fallback to direct:', e);
             this.analyser = null;
-            // 降級：直接連到輸出（無 beat detection）
-            try {
-                this.ctx.createMediaElementSource(this.bgmAudio).connect(this.ctx.destination);
-            } catch(e2) {
-                console.warn('Fallback audio routing also failed:', e2);
-            }
+            source.connect(this.ctx.destination);
         }
     }
     // 偵測重拍（低頻能量突增）並追蹤 BPM
